@@ -1,0 +1,223 @@
+# CI of the evaluation harness (docs/DESIGN.md, section 12):
+#   tests            unit and end-to-end tests on three Python versions, the task suite, the ledger
+#   regression-gate  replays the committed cassettes through the gate, and checks that the gate
+#                    still rejects a clearly regressed candidate (its self-test)
+#   live-config,     manual dispatch only: record a live OpenAI-compatible endpoint and gate it,
+#   live-eval        when the repository secrets configure one
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      feature:
+        description: The feature to evaluate on the live endpoint
+        type: choice
+        options: [bugfix, judge]
+        default: bugfix
+      split:
+        description: The split to evaluate on (dev does not spend the held-out split)
+        type: choice
+        options: [dev, heldout]
+        default: dev
+
+# Read-only: no job pushes, comments or writes anything back to the repository.
+permissions:
+  contents: read
+
+# A newer run for the same branch or pull request cancels the stale one.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Every script runs as `bash --noprofile --norc -eo pipefail`: the first failing command fails the step.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tests:
+    name: tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the harness
+        run: python -m pip install -e '.[test]'
+      - name: Unit and end-to-end tests
+        run: python -m pytest -q
+      - name: Validate the task suite
+        run: llm-eval tasks validate --suite tasks/demo
+      - name: Verify the ledger
+        run: llm-eval ledger verify
+
+  regression-gate:
+    name: regression gate (replayed cassettes)
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the harness
+        run: python -m pip install -e .
+      # Exit status 0 means the gate ran, whatever its verdict; a nonzero status (it could not
+      # run, or refused to compare the arms) fails this step. The verdicts are enforced below.
+      - name: Gate the candidate and the regressed candidate against the current baseline
+        run: |
+          mkdir -p reports
+          for f in bugfix judge; do
+            llm-eval gate --feature "$f" --split heldout --candidate cassettes/candidate --baseline @current \
+              --items-out reports/items/candidate > "reports/$f-candidate.json"
+            llm-eval gate --feature "$f" --split heldout --candidate cassettes/candidate-regressed --baseline @current \
+              --items-out reports/items/regressed > "reports/$f-regressed.json"
+          done
+      - name: Write the job summary
+        if: always()
+        run: |
+          written=()
+          for r in reports/bugfix-candidate.json reports/judge-candidate.json reports/bugfix-regressed.json reports/judge-regressed.json; do
+            if [ -s "$r" ]; then written+=("$r"); fi
+          done
+          if [ "${#written[@]}" -gt 0 ]; then
+            llm-eval summary "${written[@]}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No gate report was written: see the log of the gate step." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload the reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gate-reports
+          path: reports/
+          if-no-files-found: warn
+      - name: Enforce the verdict on the candidate
+        run: |
+          for f in bugfix judge; do
+            if ! jq -e '.promote == true' "reports/$f-candidate.json" > /dev/null; then
+              failed=$(jq -c '[.gates[] | select(.enforced and (.passed | not)) | .gate]' "reports/$f-candidate.json")
+              echo "::error title=Regression gate::the $f candidate failed the gate (failed gates: $failed); see the job summary"
+              exit 1
+            fi
+            echo "the $f candidate passed the gate"
+          done
+      - name: Self-test that the gate rejects the regressed candidate
+        run: |
+          status=0
+          expect_rejected() {
+            report="reports/$1-regressed.json"
+            failed=$(jq -c '[.gates[] | select(.enforced and (.passed | not)) | .gate]' "$report")
+            if ! jq -e '.promote == false' "$report" > /dev/null; then
+              echo "::error title=Gate self-test::the regressed $1 candidate was promoted: the gate let a clearly regressed candidate through"
+              status=1
+            elif ! jq -e --argjson want "$2" '($want - [.gates[] | select(.enforced and (.passed | not)) | .gate]) == []' "$report" > /dev/null; then
+              echo "::error title=Gate self-test::the regressed $1 candidate was rejected, but not by every gate of $2 (failed gates: $failed)"
+              status=1
+            else
+              echo "the regressed $1 candidate was rejected as expected (failed gates: $failed)"
+            fi
+          }
+          expect_rejected bugfix '["primary","schema_validity","new_sast_violations"]'
+          expect_rejected judge '["primary","schema_validity"]'
+          exit "$status"
+
+  live-config:
+    name: live evaluation configured?
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check the repository secrets
+        id: check
+        env:
+          LLM_EVAL_BASE_URL: ${{ secrets.LLM_EVAL_BASE_URL }}
+          LLM_EVAL_API_KEY: ${{ secrets.LLM_EVAL_API_KEY }}
+          LLM_EVAL_CANDIDATE_MODEL: ${{ secrets.LLM_EVAL_CANDIDATE_MODEL }}
+        run: |
+          if [ -n "$LLM_EVAL_BASE_URL" ] && [ -n "$LLM_EVAL_API_KEY" ] && [ -n "$LLM_EVAL_CANDIDATE_MODEL" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Live evaluation skipped::set the repository secrets LLM_EVAL_BASE_URL, LLM_EVAL_API_KEY and LLM_EVAL_CANDIDATE_MODEL (and optionally LLM_EVAL_BASELINE_MODEL) to evaluate a live endpoint"
+          fi
+
+  live-eval:
+    name: live evaluation
+    needs: live-config
+    if: needs.live-config.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # The inputs reach the scripts as environment variables, never pasted into their text.
+    env:
+      LLM_EVAL_BASE_URL: ${{ secrets.LLM_EVAL_BASE_URL }}
+      LLM_EVAL_API_KEY: ${{ secrets.LLM_EVAL_API_KEY }}
+      LLM_EVAL_CANDIDATE_MODEL: ${{ secrets.LLM_EVAL_CANDIDATE_MODEL }}
+      LLM_EVAL_BASELINE_MODEL: ${{ secrets.LLM_EVAL_BASELINE_MODEL }}
+      FEATURE: ${{ inputs.feature }}
+      SPLIT: ${{ inputs.split }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the harness
+        run: python -m pip install -e .
+      - name: Record the candidate with the current prompt
+        run: |
+          mkdir -p artifacts
+          llm-eval record --feature "$FEATURE" --split "$SPLIT" --model "$LLM_EVAL_CANDIDATE_MODEL" \
+            --arm live-candidate --out artifacts/live-candidate > artifacts/record-candidate.json
+      # The baseline is asked with the prompt and settings of the current baseline's cassettes,
+      # and with LLM_EVAL_BASELINE_MODEL, or the candidate model when that is not set (which
+      # measures the prompt change alone).
+      - name: Record the baseline with the current baseline's prompt
+        run: |
+          baseline_dir=$(llm-eval ledger current --feature "$FEATURE")
+          llm-eval record --feature "$FEATURE" --split "$SPLIT" --model "${LLM_EVAL_BASELINE_MODEL:-$LLM_EVAL_CANDIDATE_MODEL}" \
+            --prompt-from "$baseline_dir" --arm live-baseline --out artifacts/live-baseline > artifacts/record-baseline.json
+      - name: Gate the candidate against the baseline
+        run: |
+          llm-eval gate --feature "$FEATURE" --split "$SPLIT" --candidate artifacts/live-candidate \
+            --baseline artifacts/live-baseline --items-out artifacts/items > artifacts/report.json
+      - name: Write the job summary
+        if: always()
+        run: |
+          if [ -s artifacts/report.json ]; then
+            llm-eval summary artifacts/report.json --title "Live evaluation" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No live gate report was written: see the logs of the record and gate steps." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload the recordings and the report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-evaluation
+          path: artifacts/
+          if-no-files-found: warn
+      - name: Enforce the verdict
+        run: |
+          if ! jq -e '.promote == true' artifacts/report.json > /dev/null; then
+            failed=$(jq -c '[.gates[] | select(.enforced and (.passed | not)) | .gate]' artifacts/report.json)
+            echo "::error title=Live evaluation::the live candidate failed the gate (failed gates: $failed); see the job summary"
+            exit 1
+          fi
+          echo "the live candidate passed the gate"

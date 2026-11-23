@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Harness outputs (CI uploads them as artifacts; they are never committed)
+reports/
+artifacts/
+*.items.jsonl
+/report.json
+
+# Secrets: endpoint URLs and API keys come from the environment, never from files in the tree
+.env
+.env.*
+*.key
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+.DS_Store

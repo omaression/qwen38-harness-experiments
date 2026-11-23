@@ -1,0 +1,8 @@
+{
+  "schema": "llm_eval_harness.suite/1",
+  "name": "demo",
+  "version": 1,
+  "heldout_pct": 50,
+  "synthetic": true,
+  "description": "Synthetic bug-fix tasks written for this repository: small pure Python functions, each with one bug, one shown failing test, several hidden tests, a reference fix, and a wrong fix that passes the shown test but fails a hidden one. None is taken from a dataset or a real code base."
+}

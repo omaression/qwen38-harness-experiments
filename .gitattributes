@@ -1,0 +1,4 @@
+# The cassettes, their manifests, the task suite and the ledger are hashed byte for byte
+# (cassette fingerprints, the suite sha256, the ledger's chain). Every text file is checked out
+# with LF line endings on every platform, so a checkout with core.autocrlf cannot change a hash.
+* text=auto eol=lf
