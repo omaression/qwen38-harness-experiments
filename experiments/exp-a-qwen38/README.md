@@ -24,7 +24,7 @@ This experiment puts real model-side changes through the harness: LoRA adapters 
 | judge, held-out | 42 | 1.000 | 0.976 | −0.024 (−0.08, 0.00) | 0 / 1 | 1.00 | rejected (primary) |
 | judge, dev | 26 | 0.808 | **0.962** | **+0.154 (+0.04, +0.27)** | 4 / 0 | 0.125 | **promoted** |
 
-The primary metric is the resolved rate for `bugfix` and balanced accuracy for `judge`. The intervals come from a paired bootstrap that resamples tasks. The full reports are in `reports/`.
+The primary metric is the resolved rate for `bugfix` and balanced accuracy for `judge`. The intervals come from a paired bootstrap that resamples tasks. The full reports are in `expected/`.
 
 ## What it shows
 

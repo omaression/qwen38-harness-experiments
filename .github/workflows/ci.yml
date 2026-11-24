@@ -157,7 +157,7 @@ jobs:
         run: |
           status=0
           for exp in experiments/*/; do
-            for report in "$exp"reports/*.json; do
+            for report in "$exp"expected/*.json; do
               name=$(basename "$report" .json); feature=${name%%-*}; split=${name#*-}
               llm-eval gate --feature "$feature" --split "$split" \
                 --candidate "${exp}qwen38-adapters" --baseline "${exp}qwen38-base" > "/tmp/$name.json"
