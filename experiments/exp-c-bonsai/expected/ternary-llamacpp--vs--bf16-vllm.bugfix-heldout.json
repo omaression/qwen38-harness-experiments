@@ -1,0 +1,343 @@
+{
+  "baseline": {
+    "fingerprint": "180f6d159522bba78cfdcb4a586f8c964b2c49b01ba1a1f0018784c512fccad1",
+    "metrics": {
+      "by_tag": {
+        "excess-logic": {
+          "items": 12,
+          "resolved": 12
+        },
+        "function-misuse": {
+          "items": 5,
+          "resolved": 5
+        },
+        "incorrect-output": {
+          "items": 70,
+          "resolved": 69
+        },
+        "infinite-loop": {
+          "items": 3,
+          "resolved": 3
+        },
+        "missing-logic": {
+          "items": 15,
+          "resolved": 14
+        },
+        "operator-misuse": {
+          "items": 16,
+          "resolved": 16
+        },
+        "stackoverflow": {
+          "items": 1,
+          "resolved": 1
+        },
+        "value-misuse": {
+          "items": 18,
+          "resolved": 18
+        },
+        "variable-misuse": {
+          "items": 8,
+          "resolved": 8
+        }
+      },
+      "completion_tokens_mean": 767.810811,
+      "completion_tokens_total": 56818,
+      "finish_reasons": {
+        "stop": 74
+      },
+      "hidden_pass_rate": 0.986486,
+      "items": 74,
+      "latency_median_s": 6.053724,
+      "lenient_only_rate": 0.0,
+      "overfit_rate": 0.013514,
+      "primary": 0.986486,
+      "primary_metric": "resolved_rate",
+      "resolved": 73,
+      "resolved_rate": 0.986486,
+      "resolved_rate_ci95": [
+        0.927346,
+        0.997611
+      ],
+      "sast": {
+        "block": {},
+        "flag": {}
+      },
+      "schema_validity": 1.0,
+      "schema_validity_ci95": [
+        0.95065,
+        1.0
+      ],
+      "shown_pass_rate": 1.0,
+      "think_validity": 0.972973
+    },
+    "model": "qwen38",
+    "name": "bf16-vllm",
+    "notes": [],
+    "prompt": "bugfix/v2",
+    "prompt_sha256": "fe6987aaee2f36c0e53a2fe9f0371c759f06ac53c61437fd5a9f70ce8b08c03a",
+    "recorded_suite_sha256": "9be84130e01dc483b8cde8cad1c68ff05d2ab5dd819ebfb86b39f45e7e3a5188",
+    "source": "experiments/exp-c-bonsai/bf16-vllm",
+    "synthetic": false
+  },
+  "candidate": {
+    "fingerprint": "ccc9a048bee1fcc564875015355d71a13bce805e83bf961eaab9c81612c6d1b0",
+    "metrics": {
+      "by_tag": {
+        "excess-logic": {
+          "items": 12,
+          "resolved": 12
+        },
+        "function-misuse": {
+          "items": 5,
+          "resolved": 5
+        },
+        "incorrect-output": {
+          "items": 70,
+          "resolved": 67
+        },
+        "infinite-loop": {
+          "items": 3,
+          "resolved": 3
+        },
+        "missing-logic": {
+          "items": 15,
+          "resolved": 14
+        },
+        "operator-misuse": {
+          "items": 16,
+          "resolved": 16
+        },
+        "stackoverflow": {
+          "items": 1,
+          "resolved": 1
+        },
+        "value-misuse": {
+          "items": 18,
+          "resolved": 17
+        },
+        "variable-misuse": {
+          "items": 8,
+          "resolved": 7
+        }
+      },
+      "completion_tokens_mean": 1231.635135,
+      "completion_tokens_total": 91141,
+      "finish_reasons": {
+        "length": 1,
+        "stop": 73
+      },
+      "hidden_pass_rate": 0.959459,
+      "items": 74,
+      "latency_median_s": 53.227834,
+      "lenient_only_rate": 0.0,
+      "overfit_rate": 0.0,
+      "primary": 0.959459,
+      "primary_metric": "resolved_rate",
+      "resolved": 71,
+      "resolved_rate": 0.959459,
+      "resolved_rate_ci95": [
+        0.887453,
+        0.986118
+      ],
+      "sast": {
+        "block": {},
+        "flag": {}
+      },
+      "schema_validity": 0.986486,
+      "schema_validity_ci95": [
+        0.927346,
+        0.997611
+      ],
+      "shown_pass_rate": 0.959459,
+      "think_validity": 0.959459
+    },
+    "model": "qwen38",
+    "name": "ternary-llamacpp",
+    "notes": [],
+    "prompt": "bugfix/v2",
+    "prompt_sha256": "fe6987aaee2f36c0e53a2fe9f0371c759f06ac53c61437fd5a9f70ce8b08c03a",
+    "recorded_suite_sha256": "9be84130e01dc483b8cde8cad1c68ff05d2ab5dd819ebfb86b39f45e7e3a5188",
+    "source": "experiments/exp-c-bonsai/ternary-llamacpp",
+    "synthetic": false
+  },
+  "comparison": {
+    "alpha": 0.05,
+    "baseline": 0.986486,
+    "candidate": 0.959459,
+    "ci95": [
+      -0.069444,
+      0.0
+    ],
+    "clusters": 72,
+    "delta": -0.027027,
+    "feature": "bugfix",
+    "gains": 0,
+    "losses": 2,
+    "mcnemar_p": 0.5,
+    "mde80": 0.053326,
+    "metric": "resolved_rate",
+    "min_significant_losses": 6,
+    "n": 74,
+    "resamples": 2000,
+    "se": 0.019034,
+    "seed": 0,
+    "unpaired": []
+  },
+  "config": {
+    "alpha": 0.05,
+    "floor": null,
+    "margin": 0.0,
+    "max_new_sast": 0,
+    "require_gain": false,
+    "schema_min": 0.95,
+    "think_min": 0.9,
+    "tie": "pass"
+  },
+  "feature": "bugfix",
+  "gates": [
+    {
+      "bound": 0.95,
+      "enforced": true,
+      "gate": "schema_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 0.986486
+    },
+    {
+      "bound": 0.9,
+      "enforced": true,
+      "gate": "think_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 0.959459
+    },
+    {
+      "against": "baseline",
+      "applicable": true,
+      "bound": 0,
+      "enforced": true,
+      "gate": "new_sast_violations",
+      "op": "<=",
+      "passed": true,
+      "value": 0,
+      "violations": []
+    },
+    {
+      "at_bound": false,
+      "baseline": 0.986486,
+      "bound": 0.0,
+      "bound_source": "baseline",
+      "candidate": 0.959459,
+      "compares": "delta = candidate - baseline",
+      "enforced": true,
+      "gate": "primary",
+      "margin": 0.0,
+      "metric": "resolved_rate",
+      "op": ">=",
+      "passed": false,
+      "tie": "pass",
+      "value": -0.027027
+    },
+    {
+      "applicable": true,
+      "bound": 0.05,
+      "condition": "losses > gains and mcnemar_p < alpha",
+      "enforced": true,
+      "gains": 0,
+      "gate": "regression_test",
+      "losses": 2,
+      "op": "not",
+      "passed": true,
+      "test": "exact two-sided McNemar on the discordant items",
+      "value": 0.5
+    }
+  ],
+  "gates_passed": false,
+  "promote": false,
+  "provenance": {
+    "exec_rule": "values/1",
+    "harness_version": "0.1.0",
+    "prompt_current": "bugfix/v2",
+    "sast": {
+      "fingerprint": "c8d57f61ce8532471b51e5ebe3be7de606ffd1d67c7bac195cc72be33e39b960",
+      "rules": [
+        {
+          "cwe": "CWE-95",
+          "id": "eval-exec",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "os-command",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "shell-true",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-502",
+          "id": "unsafe-deserialization",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "process-control",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "interpreter-tamper",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "subprocess",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-470",
+          "id": "dynamic-import",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-73",
+          "id": "file-write",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "network",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "introspection",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "exit-call",
+          "severity": "flag"
+        }
+      ],
+      "ruleset": "sast/1"
+    }
+  },
+  "rule": "noninferior/1",
+  "schema": "llm_eval_harness.report/1",
+  "split": "heldout",
+  "suite": {
+    "heldout_pct": 60,
+    "items": 74,
+    "name": "humanevalfix",
+    "sha256": "9be84130e01dc483b8cde8cad1c68ff05d2ab5dd819ebfb86b39f45e7e3a5188",
+    "split_sha256": "758794e1c1c2a45dd6b16f083a709367bfaf061abc7489b651870823895e6117",
+    "synthetic": false,
+    "tasks": 74
+  },
+  "warnings": [
+    "Cost: the candidate's mean completion tokens per item (1232) are 1.6 times the baseline's (768)."
+  ]
+}

@@ -1,0 +1,367 @@
+{
+  "baseline": {
+    "fingerprint": "a69436ad0ccbcb10ed020ccfc03953bb0213b19866c5ea3d06225a4ffac6b685",
+    "metrics": {
+      "by_tag": {
+        "case-handling": {
+          "items": 1,
+          "resolved": 1
+        },
+        "early-return": {
+          "items": 2,
+          "resolved": 2
+        },
+        "empty-input": {
+          "items": 2,
+          "resolved": 2
+        },
+        "integer-division": {
+          "items": 1,
+          "resolved": 1
+        },
+        "off-by-one": {
+          "items": 1,
+          "resolved": 1
+        },
+        "ordering": {
+          "items": 1,
+          "resolved": 1
+        },
+        "parsing": {
+          "items": 3,
+          "resolved": 3
+        },
+        "set-handling": {
+          "items": 1,
+          "resolved": 1
+        },
+        "sign-handling": {
+          "items": 1,
+          "resolved": 1
+        },
+        "swapped-operands": {
+          "items": 1,
+          "resolved": 1
+        },
+        "wrong-comparison": {
+          "items": 1,
+          "resolved": 1
+        },
+        "wrong-exception": {
+          "items": 2,
+          "resolved": 2
+        }
+      },
+      "completion_tokens_mean": 453.615385,
+      "completion_tokens_total": 5897,
+      "finish_reasons": {
+        "stop": 13
+      },
+      "hidden_pass_rate": 1.0,
+      "items": 13,
+      "latency_median_s": 3.931634,
+      "lenient_only_rate": 0.0,
+      "overfit_rate": 0.0,
+      "primary": 1.0,
+      "primary_metric": "resolved_rate",
+      "resolved": 13,
+      "resolved_rate": 1.0,
+      "resolved_rate_ci95": [
+        0.771905,
+        1.0
+      ],
+      "sast": {
+        "block": {},
+        "flag": {}
+      },
+      "schema_validity": 1.0,
+      "schema_validity_ci95": [
+        0.771905,
+        1.0
+      ],
+      "shown_pass_rate": 1.0,
+      "think_validity": 1.0
+    },
+    "model": "qwen38",
+    "name": "bf16-vllm",
+    "notes": [],
+    "prompt": "bugfix/v2",
+    "prompt_sha256": "fe6987aaee2f36c0e53a2fe9f0371c759f06ac53c61437fd5a9f70ce8b08c03a",
+    "recorded_suite_sha256": "28354bed10832147d9397bdf5a6c8322f91563cf30fd5843c7829278b7083124",
+    "source": "experiments/exp-c-bonsai-demo/bf16-vllm",
+    "synthetic": false
+  },
+  "candidate": {
+    "fingerprint": "e7797256cd5a12d8599d624311f25a795c6afc72df2692cf9aa64cf4e036df9e",
+    "metrics": {
+      "by_tag": {
+        "case-handling": {
+          "items": 1,
+          "resolved": 1
+        },
+        "early-return": {
+          "items": 2,
+          "resolved": 2
+        },
+        "empty-input": {
+          "items": 2,
+          "resolved": 2
+        },
+        "integer-division": {
+          "items": 1,
+          "resolved": 1
+        },
+        "off-by-one": {
+          "items": 1,
+          "resolved": 1
+        },
+        "ordering": {
+          "items": 1,
+          "resolved": 1
+        },
+        "parsing": {
+          "items": 3,
+          "resolved": 3
+        },
+        "set-handling": {
+          "items": 1,
+          "resolved": 1
+        },
+        "sign-handling": {
+          "items": 1,
+          "resolved": 1
+        },
+        "swapped-operands": {
+          "items": 1,
+          "resolved": 1
+        },
+        "wrong-comparison": {
+          "items": 1,
+          "resolved": 1
+        },
+        "wrong-exception": {
+          "items": 2,
+          "resolved": 2
+        }
+      },
+      "completion_tokens_mean": 425.538462,
+      "completion_tokens_total": 5532,
+      "finish_reasons": {
+        "stop": 13
+      },
+      "hidden_pass_rate": 1.0,
+      "items": 13,
+      "latency_median_s": 24.80499,
+      "lenient_only_rate": 0.0,
+      "overfit_rate": 0.0,
+      "primary": 1.0,
+      "primary_metric": "resolved_rate",
+      "resolved": 13,
+      "resolved_rate": 1.0,
+      "resolved_rate_ci95": [
+        0.771905,
+        1.0
+      ],
+      "sast": {
+        "block": {},
+        "flag": {}
+      },
+      "schema_validity": 1.0,
+      "schema_validity_ci95": [
+        0.771905,
+        1.0
+      ],
+      "shown_pass_rate": 1.0,
+      "think_validity": 1.0
+    },
+    "model": "qwen38",
+    "name": "q8-llamacpp",
+    "notes": [],
+    "prompt": "bugfix/v2",
+    "prompt_sha256": "fe6987aaee2f36c0e53a2fe9f0371c759f06ac53c61437fd5a9f70ce8b08c03a",
+    "recorded_suite_sha256": "28354bed10832147d9397bdf5a6c8322f91563cf30fd5843c7829278b7083124",
+    "source": "experiments/exp-c-bonsai-demo/q8-llamacpp",
+    "synthetic": false
+  },
+  "comparison": {
+    "alpha": 0.05,
+    "baseline": 1.0,
+    "candidate": 1.0,
+    "ci95": [
+      0.0,
+      0.0
+    ],
+    "clusters": 13,
+    "delta": 0.0,
+    "feature": "bugfix",
+    "gains": 0,
+    "losses": 0,
+    "mcnemar_p": 1.0,
+    "mde80": null,
+    "metric": "resolved_rate",
+    "min_significant_losses": 6,
+    "n": 13,
+    "resamples": 2000,
+    "se": 0.0,
+    "seed": 0,
+    "unpaired": []
+  },
+  "config": {
+    "alpha": 0.05,
+    "floor": null,
+    "margin": 0.0,
+    "max_new_sast": 0,
+    "require_gain": false,
+    "schema_min": 0.95,
+    "think_min": 0.9,
+    "tie": "pass"
+  },
+  "feature": "bugfix",
+  "gates": [
+    {
+      "bound": 0.95,
+      "enforced": true,
+      "gate": "schema_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 1.0
+    },
+    {
+      "bound": 0.9,
+      "enforced": true,
+      "gate": "think_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 1.0
+    },
+    {
+      "against": "baseline",
+      "applicable": true,
+      "bound": 0,
+      "enforced": true,
+      "gate": "new_sast_violations",
+      "op": "<=",
+      "passed": true,
+      "value": 0,
+      "violations": []
+    },
+    {
+      "at_bound": true,
+      "baseline": 1.0,
+      "bound": 0.0,
+      "bound_source": "baseline",
+      "candidate": 1.0,
+      "compares": "delta = candidate - baseline",
+      "enforced": true,
+      "gate": "primary",
+      "margin": 0.0,
+      "metric": "resolved_rate",
+      "op": ">=",
+      "passed": true,
+      "tie": "pass",
+      "value": 0.0
+    },
+    {
+      "applicable": true,
+      "bound": 0.05,
+      "condition": "losses > gains and mcnemar_p < alpha",
+      "enforced": true,
+      "gains": 0,
+      "gate": "regression_test",
+      "losses": 0,
+      "op": "not",
+      "passed": true,
+      "test": "exact two-sided McNemar on the discordant items",
+      "value": 1.0
+    }
+  ],
+  "gates_passed": true,
+  "promote": true,
+  "provenance": {
+    "exec_rule": "values/1",
+    "harness_version": "0.1.0",
+    "prompt_current": "bugfix/v2",
+    "sast": {
+      "fingerprint": "c8d57f61ce8532471b51e5ebe3be7de606ffd1d67c7bac195cc72be33e39b960",
+      "rules": [
+        {
+          "cwe": "CWE-95",
+          "id": "eval-exec",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "os-command",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "shell-true",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-502",
+          "id": "unsafe-deserialization",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "process-control",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "interpreter-tamper",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "subprocess",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-470",
+          "id": "dynamic-import",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-73",
+          "id": "file-write",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "network",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "introspection",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "exit-call",
+          "severity": "flag"
+        }
+      ],
+      "ruleset": "sast/1"
+    }
+  },
+  "rule": "noninferior/1",
+  "schema": "llm_eval_harness.report/1",
+  "split": "dev",
+  "suite": {
+    "heldout_pct": 50,
+    "items": 13,
+    "name": "demo",
+    "sha256": "28354bed10832147d9397bdf5a6c8322f91563cf30fd5843c7829278b7083124",
+    "split_sha256": "9db924b695fadf6e828f4df928ebab19e16c679ca0e3171da587e22d5a8d51cd",
+    "synthetic": true,
+    "tasks": 13
+  },
+  "warnings": [
+    "13 paired items: with no gains, at least 6 losses are needed before McNemar calls a regression significant at alpha 0.05; mde80 n/a (no discordant items).",
+    "No discordant items: on all 13 items the candidate was right exactly where the baseline was, so the paired tests have nothing to work with."
+  ]
+}

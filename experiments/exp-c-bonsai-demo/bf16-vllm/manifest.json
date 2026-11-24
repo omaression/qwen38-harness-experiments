@@ -1,0 +1,46 @@
+{
+  "arm": "bf16-vllm",
+  "description": "Qwen3.8-27B stock bf16 on vLLM, model 'qwen38'",
+  "features": {
+    "bugfix": {
+      "file": "bugfix.jsonl",
+      "items": 34,
+      "model": "qwen38",
+      "prompt": "bugfix/v2",
+      "settings": {
+        "extra": {
+          "chat_template_kwargs": {
+            "enable_thinking": true,
+            "reasoning_effort": "medium"
+          }
+        },
+        "max_tokens": 16384,
+        "seed": 0,
+        "temperature": 0.0
+      },
+      "suite": "demo",
+      "suite_sha256": "28354bed10832147d9397bdf5a6c8322f91563cf30fd5843c7829278b7083124"
+    },
+    "judge": {
+      "file": "judge.jsonl",
+      "items": 68,
+      "model": "qwen38",
+      "prompt": "judge/v2",
+      "settings": {
+        "extra": {
+          "chat_template_kwargs": {
+            "enable_thinking": true,
+            "reasoning_effort": "medium"
+          }
+        },
+        "max_tokens": 16384,
+        "seed": 0,
+        "temperature": 0.0
+      },
+      "suite": "demo",
+      "suite_sha256": "28354bed10832147d9397bdf5a6c8322f91563cf30fd5843c7829278b7083124"
+    }
+  },
+  "schema": "llm_eval_harness.cassettes/1",
+  "synthetic": false
+}

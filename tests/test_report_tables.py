@@ -3,8 +3,12 @@
     the committed tables are up to date        --check passes on the repository itself
     the numbers are the reports' numbers       every Experiment A report's delta, interval, gains and
                                                losses, McNemar p, MDE80 and verdict appear in the output
-    experiment C                               a marked placeholder while experiments/exp-c-* has no
-                                               reports; the measured table once it has
+                                               (one arm pair: one row per feature and split)
+    experiment C                               every report of experiments/exp-c-bonsai and -demo appears
+                                               as a comparison row (C0, the noise floor, first) with its
+                                               token cost, and each arm once in the arms table; an arm
+                                               with two different metrics, or two directories sharing an
+                                               experiment id, is refused
     drift and stale files                      --check fails on an edited table or a stray .tex file
     the output is deterministic                two runs write the same bytes
 
@@ -79,29 +83,89 @@ def test_tables_hold_the_numbers_of_every_experiment_a_report(tmp_path: Path) ->
     assert "schema\\_validity (0.846)" in gate_tex and "schema_validity (0.846)" in tables
     # the results section's marked blocks were filled with the same tables
     results = (root / "docs" / "report" / "06-results.md").read_text(encoding="utf-8")
-    assert "+0.154 [+0.038, +0.269]" in results and "PLACEHOLDER" in results
+    assert "+0.154 [+0.038, +0.269]" in results
 
 
-def test_experiment_c_placeholder_until_its_reports_exist(tmp_path: Path) -> None:
+EXPERIMENTS_C = {"exp-c": ROOT / "experiments" / "exp-c-bonsai" / "expected",
+                 "exp-c-demo": ROOT / "experiments" / "exp-c-bonsai-demo" / "expected"}
+COMPARISON_IDS = {("bf16-vllm-rerun", "bf16-vllm"): "C0", ("q8-llamacpp", "bf16-vllm"): "C1",
+                  ("ternary-llamacpp", "q8-llamacpp"): "C2", ("ternary-llamacpp", "bf16-vllm"): "C3"}
+
+
+def section(tables: str, directory: str) -> str:
+    """The part of tables.md under the heading of experiments/<directory>."""
+    start = tables.index(f": `experiments/{directory}`\n")
+    end = tables.find("\n## ", start)
+    return tables[start:] if end < 0 else tables[start:end]
+
+
+def test_tables_hold_the_numbers_of_every_experiment_c_report(tmp_path: Path) -> None:
     root = copy_inputs(tmp_path)
-    assert run("--root", str(root)).returncode == 0
-    for name in ("exp-c-gate.tex", "exp-c-arms.tex"):
-        assert "PLACEHOLDER" in (root / "docs" / "paper" / "tables" / name).read_text(encoding="utf-8")
-    assert "PLACEHOLDER: Experiment C has not been recorded" in (root / "docs" / "report" / "tables.md").read_text(encoding="utf-8")
-
-    # A committed exp-c report replaces the placeholder with measured numbers under the same names.
-    report = json.loads((EXP_A / "bugfix-heldout.json").read_text(encoding="utf-8"))
-    report["candidate"]["name"], report["baseline"]["name"] = "ternary-q2-llamacpp", "bf16-vllm"
-    report["comparison"]["delta"] = -0.123456
-    exp_c = root / "experiments" / "exp-c-bonsai" / "expected"
-    exp_c.mkdir(parents=True)
-    (exp_c / "bugfix-heldout.json").write_text(json.dumps(report), encoding="utf-8")
     res = run("--root", str(root))
     assert res.returncode == 0, res.stderr
-    gate = (root / "docs" / "paper" / "tables" / "exp-c-gate.tex").read_text(encoding="utf-8")
-    assert "PLACEHOLDER" not in gate and "0.123" in gate and "tab:exp-c-gate" in gate
+    tables = (root / "docs" / "report" / "tables.md").read_text(encoding="utf-8")
+    counts = {"exp-c": 16, "exp-c-demo": 12}
+    for eid, expected in EXPERIMENTS_C.items():
+        reports = sorted(expected.glob("*.json"))
+        assert len(reports) == counts[eid]
+        part = section(tables, expected.parent.name)
+        gate_tex = (root / "docs" / "paper" / "tables" / f"{eid}-gate.tex").read_text(encoding="utf-8")
+        arms_tex = (root / "docs" / "paper" / "tables" / f"{eid}-arms.tex").read_text(encoding="utf-8")
+        assert f"tab:{eid}-gate" in gate_tex and f"tab:{eid}-arms" in arms_tex and "PLACEHOLDER" not in gate_tex
+        for path in reports:
+            r: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+            c, cand, base = r["comparison"], r["candidate"], r["baseline"]
+            cid = COMPARISON_IDS[(cand["name"], base["name"])]
+            assert path.name.startswith(f"{cand['name']}--vs--{base['name']}.{r['feature']}-{r['split']}")
+            row = next(line for line in part.splitlines()
+                       if line.startswith(f"| {cid} | {r['feature']} | {r['split']} | {c['n']} | {base['name']} | {cand['name']} | "))
+            assert f"{signed(c['delta'])} [{signed(c['ci95'][0])}, {signed(c['ci95'][1])}]" in row
+            assert f"| {c['gains']} / {c['losses']} |" in row and f"| {c['mcnemar_p']:.3f} |" in row
+            assert (f"| {c['mde80']:.3f} |" if c["mde80"] is not None else "| n/a |") in row
+            assert ("| PROMOTE |" if r["promote"] else "| REJECT |") in row
+            ct, bt = cand["metrics"]["completion_tokens_mean"], base["metrics"]["completion_tokens_mean"]
+            assert f"| {ct:.0f} / {bt:.0f} ({ct / bt:.2f}x) |" in row
+            for g in r["gates"]:
+                if g["enforced"] and not g["passed"]:
+                    assert g["gate"] in row
+            # every arm of the report has its row in the arms table, with the report's numbers
+            for arm in (cand, base):
+                m = arm["metrics"]
+                arm_row = next(line for line in part.splitlines()
+                               if line.startswith(f"| {r['feature']} | {r['split']} | {arm['name']} | {m['primary']:.3f} "))
+                assert f"| {m['finish_reasons'].get('length', 0)}/{m['items']} |" in arm_row
+                assert f"| {m['completion_tokens_mean']:.0f} | {m['completion_tokens_total']} |" in arm_row
+            assert f"{abs(c['delta']):.3f}" in gate_tex
+    # the noise floor is the first comparison of experiment C, and only experiment C has one
+    exp_c = section(tables, "exp-c-bonsai")
+    assert exp_c.index("| C0 | bugfix | heldout | 74 |") < exp_c.index("| C1 | bugfix | heldout | 74 |")
+    assert "| C0 |" not in section(tables, "exp-c-bonsai-demo")
+    assert "C0: bf16-vllm-rerun against bf16-vllm, noise floor" in exp_c
+    # the results section's marked blocks were filled with the measured tables
     results = (root / "docs" / "report" / "06-results.md").read_text(encoding="utf-8")
-    assert "-0.123" in results and "PLACEHOLDER" not in results
+    assert "PLACEHOLDER" not in results and "| C3 | bugfix | heldout | 74 | bf16-vllm | ternary-llamacpp |" in results
+
+
+def test_an_arm_reported_with_two_different_metrics_is_refused(tmp_path: Path) -> None:
+    root = copy_inputs(tmp_path)
+    path = root / "experiments" / "exp-c-bonsai" / "expected" / "ternary-llamacpp--vs--q8-llamacpp.bugfix-heldout.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    report["candidate"]["metrics"]["completion_tokens_mean"] = 1.0
+    path.write_text(json.dumps(report), encoding="utf-8")
+    res = run("--root", str(root))
+    assert res.returncode == 2 and "different metrics for arm ternary-llamacpp" in res.stderr
+
+
+def test_experiment_ids_and_a_shared_id_is_refused(tmp_path: Path) -> None:
+    root = copy_inputs(tmp_path)
+    assert run("--root", str(root)).returncode == 0
+    names = sorted(p.name for p in (root / "docs" / "paper" / "tables").glob("*.tex"))
+    assert names == sorted(f"{eid}-{kind}.tex" for eid in ("exp-a", "exp-c", "exp-c-demo") for kind in ("arms", "gate"))
+    other = root / "experiments" / "exp-c-other" / "expected"
+    other.mkdir(parents=True)
+    shutil.copyfile(EXP_A / "bugfix-heldout.json", other / "bugfix-heldout.json")
+    res = run("--root", str(root))
+    assert res.returncode == 2 and "share the id exp-c" in res.stderr
 
 
 def test_check_reports_drift_and_stray_files(tmp_path: Path) -> None:
@@ -136,5 +200,6 @@ def test_output_is_deterministic(tmp_path: Path) -> None:
     first, second = copy_inputs(tmp_path / "a"), copy_inputs(tmp_path / "b")
     assert run("--root", str(first)).returncode == 0 and run("--root", str(second)).returncode == 0
     for rel in ("docs/report/tables.md", "docs/report/06-results.md", "docs/paper/tables/exp-a-gate.tex",
-                "docs/paper/tables/exp-a-arms.tex", "docs/paper/tables/exp-c-gate.tex"):
+                "docs/paper/tables/exp-a-arms.tex", "docs/paper/tables/exp-c-gate.tex", "docs/paper/tables/exp-c-arms.tex",
+                "docs/paper/tables/exp-c-demo-gate.tex", "docs/paper/tables/exp-c-demo-arms.tex"):
         assert (first / rel).read_bytes() == (second / rel).read_bytes(), rel

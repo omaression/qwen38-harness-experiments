@@ -2,6 +2,8 @@
 #   tests            unit and end-to-end tests on three Python versions, the task suite, the ledger
 #   regression-gate  replays the committed cassettes through the gate, and checks that the gate
 #                    still rejects a clearly regressed candidate (its self-test)
+#   experiments      replays every experiment's recorded real-model cassettes and compares the gate
+#                    reports with the committed ones in experiments/*/expected/, byte for byte
 #   live-config,     manual dispatch only: record a live OpenAI-compatible endpoint and gate it,
 #   live-eval        when the repository secrets configure one
 name: CI
@@ -155,19 +157,37 @@ jobs:
       # Each experiment's committed reports must be reproduced byte for byte from its recorded
       # cassettes: a change to scoring, statistics or the gate rule that moves a real-model verdict
       # shows up here as a diff, and is either a bug or a change the reports must be regenerated for.
+      # A report named <candidate>--vs--<baseline>.<feature>-<split>.json compares those two arm
+      # directories of its experiment; the older name <feature>-<split>.json (experiment A) compares
+      # qwen38-adapters with qwen38-base. The suite is tasks/<the experiment's SUITE file>, or
+      # tasks/demo when the experiment has none.
       - name: Replay every experiment and compare with its committed reports
         run: |
           status=0
           for exp in experiments/*/; do
+            suite=demo
+            if [ -f "${exp}SUITE" ]; then suite=$(tr -d '[:space:]' < "${exp}SUITE"); fi
             for report in "$exp"expected/*.json; do
-              name=$(basename "$report" .json); feature=${name%%-*}; split=${name#*-}
-              llm-eval gate --feature "$feature" --split "$split" \
-                --candidate "${exp}qwen38-adapters" --baseline "${exp}qwen38-base" > "/tmp/$name.json"
-              if cmp -s "/tmp/$name.json" "$report"; then
+              name=$(basename "$report" .json)
+              case "$name" in
+                *--vs--*.*)
+                  arms=${name%%.*}; run=${name#*.}
+                  candidate=${arms%%--vs--*}; baseline=${arms#*--vs--} ;;
+                *)
+                  run=$name; candidate=qwen38-adapters; baseline=qwen38-base ;;
+              esac
+              feature=${run%%-*}; split=${run#*-}
+              out="/tmp/$(basename "$exp").$name.json"
+              if ! llm-eval gate --feature "$feature" --split "$split" --suite "tasks/$suite" \
+                --candidate "${exp}${candidate}" --baseline "${exp}${baseline}" > "$out"; then
+                echo "::error title=Experiment drift::the gate could not replay $report (see the log above)"
+                status=1
+              elif cmp -s "$out" "$report"; then
                 echo "$report: reproduced (promote $(jq -r .promote "$report"))"
               else
                 echo "::error title=Experiment drift::$report is not reproduced by the current harness"
-                diff <(jq -S . "$report") <(jq -S . "/tmp/$name.json") | head -40
+                # diff exits 1 on a difference: under pipefail that must not end the loop early
+                diff <(jq -S . "$report") <(jq -S . "$out") | head -40 || true
                 status=1
               fi
             done

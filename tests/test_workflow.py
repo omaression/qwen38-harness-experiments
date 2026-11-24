@@ -9,6 +9,9 @@ tests need nothing beyond the standard library and pytest):
   - the regression-gate job's shell steps, run in order with bash and jq on a copy of the
     repository's suite, cassettes and ledger: they pass on the committed cassettes, and the
     self-test fails when the "regressed" candidate is not rejected, or not by the expected gates;
+  - the experiments job's replay step on a copy of three committed reports (an experiment A report
+    under its older name, a <candidate>--vs--<baseline> report on the HumanEvalFix suite named by
+    its experiment's SUITE file, and one on the demo suite): it reproduces them, and fails on drift;
   - the live jobs' steps: the secrets check, and the whole live evaluation run against a local
     OpenAI-compatible endpoint (a fake model that answers from the demo suite), which must
     record both arms, gate them and leak neither the API key nor the endpoint URL.
@@ -172,6 +175,7 @@ def test_the_jobs_and_what_they_need() -> None:
     head = {job: "\n".join(line for line in lines if _indent(line) == 4) for job, lines in table.items()}
     assert "needs" not in head["tests"]
     assert "    needs: tests" in head["regression-gate"]
+    assert "    needs: tests" in head["experiments"]
     assert "    if: github.event_name == 'workflow_dispatch'" in head["live-config"]
     assert "    needs: live-config" in head["live-eval"]
     assert "    if: needs.live-config.outputs.configured == 'true'" in head["live-eval"]
@@ -184,7 +188,7 @@ def test_the_python_matrix_is_quoted() -> None:
     # Unquoted, YAML reads 3.10 as the number 3.1.
     assert '        python-version: ["3.10", "3.11", "3.12"]' in jobs()["tests"]
     assert all(step.get("with", {}).get("python-version") == '"3.12"'
-               for job in ("regression-gate", "live-eval") for step in steps(job) if "setup-python" in step.get("uses", ""))
+               for job in ("regression-gate", "experiments", "live-eval") for step in steps(job) if "setup-python" in step.get("uses", ""))
 
 
 def test_the_tests_job() -> None:
@@ -204,7 +208,7 @@ def test_actions_are_pinned_to_their_current_major_versions() -> None:
 
 def test_secrets_appear_only_in_the_live_jobs() -> None:
     table = jobs()
-    for job in ("tests", "regression-gate"):
+    for job in ("tests", "regression-gate", "experiments"):
         assert "secrets." not in "\n".join(table[job]), f"{job} must run without secrets"
     outside = [line for line in LINES if "secrets." in line and not any(line in table[job] for job in LIVE_JOBS)]
     assert not outside
@@ -279,8 +283,11 @@ def test_the_live_job() -> None:
 
 # ---- every llm-eval command line parses ----------------------------------------------------------
 
-#: Placeholder values for the shell variables the scripts use.
-VARIABLES = {"f": "bugfix", "FEATURE": "bugfix", "SPLIT": "dev", "feature": "bugfix", "split": "dev"}
+#: Placeholder values for the shell variables the scripts use (the experiments job's arm
+#: directories are "${exp}${candidate}" and "${exp}${baseline}").
+VARIABLES = {"f": "bugfix", "FEATURE": "bugfix", "SPLIT": "dev", "feature": "bugfix", "split": "dev",
+             "suite": "humanevalfix", "exp": "experiments/exp-c-bonsai/", "candidate": "ternary-llamacpp",
+             "baseline": "bf16-vllm"}
 
 
 def _substitute(command: str) -> str:
@@ -421,6 +428,81 @@ def test_the_enforcement_step_fails_when_the_candidate_is_rejected_by_its_gate(g
     assert result.returncode == 1
     assert "::error title=Regression gate::the bugfix candidate failed the gate" in result.stdout
     assert "new_sast_violations" in result.stdout
+
+
+# ---- the experiments job ----------------------------------------------------------------------------
+
+
+def _experiments_script() -> str:
+    return next(step["run"] for step in steps("experiments") if step.get("name", "").startswith("Replay every experiment"))
+
+
+def test_the_experiments_job_reads_names_and_suites() -> None:
+    script = _experiments_script()
+    assert "for exp in experiments/*/; do" in script and 'for report in "$exp"expected/*.json; do' in script
+    assert "suite=demo" in script and '"${exp}SUITE"' in script and '--suite "tasks/$suite"' in script
+    assert "*--vs--*.*)" in script and "candidate=qwen38-adapters; baseline=qwen38-base" in script
+    assert '--candidate "${exp}${candidate}" --baseline "${exp}${baseline}"' in script
+    assert 'cmp -s "$out" "$report"' in script and "::error title=Experiment drift::" in script
+    assert "| head -40 || true" in script, "a difference must not end the loop before the other reports are checked"
+    assert script.rstrip().endswith('exit "$status"')
+
+
+#: (experiment, report) pairs the replay test runs: the three naming and suite cases.
+REPLAYED = (("exp-a-qwen38", "judge-dev.json"),
+            ("exp-c-bonsai", "ternary-llamacpp--vs--q8-llamacpp.bugfix-heldout.json"),
+            ("exp-c-bonsai-demo", "ternary-llamacpp--vs--bf16-vllm.judge-dev.json"))
+
+
+@pytest.fixture(scope="module")
+def experiments_workspace(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A copy of the suites and of three experiments, each with one committed report."""
+    workspace = tmp_path_factory.mktemp("experiments-runner")
+    shutil.copytree(ROOT / "tasks", workspace / "tasks")
+    for experiment, report in REPLAYED:
+        src, dst = ROOT / "experiments" / experiment, workspace / "experiments" / experiment
+        shutil.copytree(src, dst, ignore=shutil.ignore_patterns("expected"))
+        (dst / "expected").mkdir()
+        shutil.copyfile(src / "expected" / report, dst / "expected" / report)
+    return workspace
+
+
+@needs_shell
+def test_the_experiments_step_reproduces_every_kind_of_report(experiments_workspace: Path) -> None:
+    result = run_step(experiments_workspace, _experiments_script())
+    assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
+    for experiment, report in REPLAYED:
+        promote = json.loads((ROOT / "experiments" / experiment / "expected" / report).read_text(encoding="utf-8"))["promote"]
+        assert f"experiments/{experiment}/expected/{report}: reproduced (promote {str(promote).lower()})" in result.stdout
+    assert "::error" not in result.stdout
+    assert "on heldout" in result.stderr and "humanevalfix" not in result.stdout
+
+
+@needs_shell
+def test_the_experiments_step_fails_on_a_drifted_report(experiments_workspace: Path, tmp_path: Path) -> None:
+    workspace = tmp_path / "w"
+    shutil.copytree(experiments_workspace, workspace)
+    experiment, report = REPLAYED[1]
+    path = workspace / "experiments" / experiment / "expected" / report
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["promote"] = True  # a committed verdict the harness no longer produces
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    result = run_step(workspace, _experiments_script())
+    assert result.returncode == 1
+    assert f"::error title=Experiment drift::experiments/{experiment}/expected/{report} is not reproduced" in result.stdout
+    assert result.stdout.count("reproduced (promote") == 2, "the reports after the drifted one are still checked"
+
+
+@needs_shell
+def test_the_experiments_step_fails_when_a_report_cannot_be_replayed(experiments_workspace: Path, tmp_path: Path) -> None:
+    workspace = tmp_path / "w"
+    shutil.copytree(experiments_workspace, workspace)
+    experiment, report = REPLAYED[1]
+    (workspace / "experiments" / experiment / "SUITE").write_text("demo\n", encoding="utf-8")  # the wrong suite
+    result = run_step(workspace, _experiments_script())
+    assert result.returncode == 1
+    assert f"::error title=Experiment drift::the gate could not replay experiments/{experiment}/expected/{report}" in result.stdout
+    assert result.stdout.count("reproduced (promote") == 2
 
 
 # ---- running the live jobs' steps against a local endpoint -------------------------------------------

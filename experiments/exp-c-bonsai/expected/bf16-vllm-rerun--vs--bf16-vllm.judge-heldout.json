@@ -1,0 +1,303 @@
+{
+  "baseline": {
+    "fingerprint": "180f6d159522bba78cfdcb4a586f8c964b2c49b01ba1a1f0018784c512fccad1",
+    "metrics": {
+      "accuracy": 0.952703,
+      "approve_rate": 0.452703,
+      "balanced_accuracy": 0.952703,
+      "balanced_accuracy_ci95": [
+        0.916667,
+        0.980769
+      ],
+      "completion_tokens_mean": 743.945946,
+      "completion_tokens_total": 110104,
+      "confusion": {
+        "fn": 3,
+        "fp": 0,
+        "invalid_neg": 0,
+        "invalid_pos": 4,
+        "tn": 74,
+        "tp": 67
+      },
+      "f1": 0.950355,
+      "finish_reasons": {
+        "stop": 148
+      },
+      "items": 148,
+      "latency_median_s": 5.263528,
+      "lenient_only_rate": 0.02027,
+      "negatives": 74,
+      "paired_items": 148,
+      "paired_tasks": 74,
+      "positives": 74,
+      "precision": 1.0,
+      "primary": 0.952703,
+      "primary_metric": "balanced_accuracy",
+      "schema_validity": 0.972973,
+      "schema_validity_ci95": [
+        0.932574,
+        0.989441
+      ],
+      "think_validity": 0.972973,
+      "tnr": 1.0,
+      "tnr_ci95": [
+        0.95065,
+        1.0
+      ],
+      "tpr": 0.905405,
+      "tpr_ci95": [
+        0.817377,
+        0.95342
+      ],
+      "unpaired_items": 0,
+      "vs_chance": true
+    },
+    "model": "qwen38",
+    "name": "bf16-vllm",
+    "notes": [],
+    "prompt": "judge/v2",
+    "prompt_sha256": "f0991b81e96f73d62fb4330cfcd560644ca8063adb01e50743908ca72585e039",
+    "recorded_suite_sha256": "9be84130e01dc483b8cde8cad1c68ff05d2ab5dd819ebfb86b39f45e7e3a5188",
+    "source": "experiments/exp-c-bonsai/bf16-vllm",
+    "synthetic": false
+  },
+  "candidate": {
+    "fingerprint": "2a4b46a15d40ee41eba24f4969008b956523f736bcd40e427ae591436ed3c540",
+    "metrics": {
+      "accuracy": 0.972973,
+      "approve_rate": 0.472973,
+      "balanced_accuracy": 0.972973,
+      "balanced_accuracy_ci95": [
+        0.944444,
+        0.993421
+      ],
+      "completion_tokens_mean": 742.736486,
+      "completion_tokens_total": 109925,
+      "confusion": {
+        "fn": 3,
+        "fp": 0,
+        "invalid_neg": 0,
+        "invalid_pos": 1,
+        "tn": 74,
+        "tp": 70
+      },
+      "f1": 0.972222,
+      "finish_reasons": {
+        "stop": 148
+      },
+      "items": 148,
+      "latency_median_s": 5.181239,
+      "lenient_only_rate": 0.006757,
+      "negatives": 74,
+      "paired_items": 148,
+      "paired_tasks": 74,
+      "positives": 74,
+      "precision": 1.0,
+      "primary": 0.972973,
+      "primary_metric": "balanced_accuracy",
+      "schema_validity": 0.993243,
+      "schema_validity_ci95": [
+        0.962723,
+        0.998806
+      ],
+      "think_validity": 0.959459,
+      "tnr": 1.0,
+      "tnr_ci95": [
+        0.95065,
+        1.0
+      ],
+      "tpr": 0.945946,
+      "tpr_ci95": [
+        0.869096,
+        0.978781
+      ],
+      "unpaired_items": 0,
+      "vs_chance": true
+    },
+    "model": "qwen38",
+    "name": "bf16-vllm-rerun",
+    "notes": [],
+    "prompt": "judge/v2",
+    "prompt_sha256": "f0991b81e96f73d62fb4330cfcd560644ca8063adb01e50743908ca72585e039",
+    "recorded_suite_sha256": "9be84130e01dc483b8cde8cad1c68ff05d2ab5dd819ebfb86b39f45e7e3a5188",
+    "source": "experiments/exp-c-bonsai/bf16-vllm-rerun",
+    "synthetic": false
+  },
+  "comparison": {
+    "alpha": 0.05,
+    "baseline": 0.952703,
+    "candidate": 0.972973,
+    "ci95": [
+      0.0,
+      0.047297
+    ],
+    "clusters": 72,
+    "delta": 0.02027,
+    "feature": "judge",
+    "gains": 3,
+    "losses": 0,
+    "mcnemar_p": 0.25,
+    "mde80": 0.033069,
+    "metric": "balanced_accuracy",
+    "min_significant_losses": 6,
+    "n": 148,
+    "resamples": 2000,
+    "se": 0.011804,
+    "seed": 0,
+    "unpaired": []
+  },
+  "config": {
+    "alpha": 0.05,
+    "floor": null,
+    "margin": 0.0,
+    "max_new_sast": 0,
+    "require_gain": false,
+    "schema_min": 0.95,
+    "think_min": 0.9,
+    "tie": "pass"
+  },
+  "feature": "judge",
+  "gates": [
+    {
+      "bound": 0.95,
+      "enforced": true,
+      "gate": "schema_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 0.993243
+    },
+    {
+      "bound": 0.9,
+      "enforced": true,
+      "gate": "think_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 0.959459
+    },
+    {
+      "applicable": false,
+      "bound": 0,
+      "enforced": false,
+      "gate": "new_sast_violations",
+      "op": "<=",
+      "passed": true,
+      "reason": "judge replies hold no code to scan",
+      "value": null
+    },
+    {
+      "at_bound": false,
+      "baseline": 0.952703,
+      "bound": 0.0,
+      "bound_source": "baseline",
+      "candidate": 0.972973,
+      "compares": "delta = candidate - baseline",
+      "enforced": true,
+      "gate": "primary",
+      "margin": 0.0,
+      "metric": "balanced_accuracy",
+      "op": ">=",
+      "passed": true,
+      "tie": "pass",
+      "value": 0.02027
+    },
+    {
+      "applicable": true,
+      "bound": 0.05,
+      "condition": "losses > gains and mcnemar_p < alpha",
+      "enforced": true,
+      "gains": 3,
+      "gate": "regression_test",
+      "losses": 0,
+      "op": "not",
+      "passed": true,
+      "test": "exact two-sided McNemar on the discordant items",
+      "value": 0.25
+    }
+  ],
+  "gates_passed": true,
+  "promote": true,
+  "provenance": {
+    "exec_rule": "values/1",
+    "harness_version": "0.1.0",
+    "prompt_current": "judge/v2",
+    "sast": {
+      "fingerprint": "c8d57f61ce8532471b51e5ebe3be7de606ffd1d67c7bac195cc72be33e39b960",
+      "rules": [
+        {
+          "cwe": "CWE-95",
+          "id": "eval-exec",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "os-command",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "shell-true",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-502",
+          "id": "unsafe-deserialization",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "process-control",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "interpreter-tamper",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "subprocess",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-470",
+          "id": "dynamic-import",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-73",
+          "id": "file-write",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "network",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "introspection",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "exit-call",
+          "severity": "flag"
+        }
+      ],
+      "ruleset": "sast/1"
+    }
+  },
+  "rule": "noninferior/1",
+  "schema": "llm_eval_harness.report/1",
+  "split": "heldout",
+  "suite": {
+    "heldout_pct": 60,
+    "items": 148,
+    "name": "humanevalfix",
+    "sha256": "9be84130e01dc483b8cde8cad1c68ff05d2ab5dd819ebfb86b39f45e7e3a5188",
+    "split_sha256": "758794e1c1c2a45dd6b16f083a709367bfaf061abc7489b651870823895e6117",
+    "synthetic": false,
+    "tasks": 74
+  },
+  "warnings": []
+}

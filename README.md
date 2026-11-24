@@ -300,10 +300,19 @@ be able to download them.
 
 ## Experiments on a real model
 
-`experiments/` holds recorded replies of a real open-weight model, for model-side changes put through the gate:
-- `experiments/exp-a-qwen38/`: Qwen3.8-27B with LoRA adapters, served by vLLM. It compares an identity (no-op) adapter for `bugfix` and a trained judge adapter for `judge` against the base model.
-- The no-op adapter is rejected on one noisy item (McNemar p = 1.0). The trained judge gains 15 points on the dev split but cannot show it on a held-out split where the base model is already perfect.
-- The CI job `experiments` replays every experiment and fails when the current harness no longer reproduces its committed reports byte for byte.
+`experiments/` holds recorded replies of real open-weight models, for model-side changes put through the gate. Each experiment's README gives its setup, results and how to replay it.
+
+- `experiments/exp-a-qwen38/`: Qwen3.8-27B with LoRA adapters, served by vLLM, on the demo suite. It compares an identity (no-op) adapter for `bugfix` and a trained judge adapter for `judge` against the base model.
+  - The no-op adapter is rejected on one noisy item (McNemar p = 1.0).
+  - The trained judge gains 15 points on the dev split, but cannot show it on a held-out split where the base model is already perfect.
+- `experiments/exp-c-bonsai/`: Ternary Bonsai 2 27B (a ternary model, `Q2_0` GGUF on llama.cpp) against the stock bf16 Qwen3.8-27B on vLLM, on the HumanEvalFix suite. A Q8_0 arm on llama.cpp is the engine control, and a second recording of the bf16 arm is the no-op.
+  - On the 74 held-out bug-fix tasks, the ternary model resolves 71 against bf16's 73 (−0.027, 2 losses, McNemar p = 0.5): about 97% of the bf16 rate. Against the Q8_0 arm it is −0.041 (3 losses, p = 0.25).
+  - The engine change alone loses no bug-fix item. The no-op ties at 0.986 on the held-out bug fix (1 gain, 1 loss), and the gate at margin 0 rejects it on both dev splits.
+  - The ternary model uses 1.6 times bf16's completion tokens on the held-out bug fix, and is the only arm with replies cut at the token limit.
+  - No comparison is significant. The ternary model's losses are the size of the noise floor, and a margin near 0.05 would be the defensible setting for this suite.
+- `experiments/exp-c-bonsai-demo/`: the same arms on the demo suite, where every arm is at or near ceiling. All three resolve every bug-fix item, and the gate's three rejections are single format failures on the judge.
+
+Reports are named `<candidate>--vs--<baseline>.<feature>-<split>.json` (Experiment A's keep `<feature>-<split>.json`), and an experiment's `SUITE` file names its suite (default `demo`). The CI job `experiments` replays all 32 reports and fails when the current harness no longer reproduces any of them byte for byte.
 
 ## Writing the report
 
@@ -312,7 +321,7 @@ The class deliverable is an IEEE-format project report on the harness and its ex
 - [docs/report/](docs/report/README.md) holds its text, one markdown file per section (abstract, I. Introduction to VII. Conclusion, references). Its README maps each section to the files and reports its claims rest on.
 - [docs/paper/](docs/paper/) holds the same text as an IEEEtran conference paper (`main.tex`), with its bibliography (`refs.bib`) and generated tables (`tables/`). Build it from that directory with `pdflatex main && bibtex main && pdflatex main && pdflatex main`. It needs the IEEEtran class (`kpsewhich IEEEtran.cls`; see [docs/report/README.md](docs/report/README.md)).
 - The result tables are generated from the committed reports by `python scripts/make_report_tables.py`, which writes `docs/report/tables.md`, `docs/paper/tables/*.tex` and the marked blocks of the results section. `tests/test_report_tables.py` fails when a table no longer matches the reports, so rerun the script after a report changes.
-- Experiment C (Ternary Bonsai 2 against bf16 Qwen3.8-27B on HumanEvalFix) is not recorded yet. Its tables are marked placeholders that the script fills once `experiments/exp-c-*/expected/` exists.
+- Experiment C's tables (one gate row per comparison, with its token cost; one row per arm) are generated from `experiments/exp-c-bonsai/expected/` and `experiments/exp-c-bonsai-demo/expected/` in the same way.
 
 ## How to read a report
 

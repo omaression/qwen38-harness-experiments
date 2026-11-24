@@ -23,14 +23,18 @@ OUTPUTS
                                        <!-- END GENERATED: <name> --> is replaced by the markdown
                                        table <name> (for example exp-a-gate); other text is untouched
 
-<id> is the experiment directory's leading "exp-<letter>" (experiments/exp-a-qwen38 -> exp-a).
-docs/paper/tables/ holds generated files only: a .tex file there that this script does not write
-is deleted on writing and reported by --check.
+<id> is the experiment directory's leading "exp-<letter>", with "-demo" appended when the directory
+name ends in "-demo" (experiments/exp-a-qwen38 -> exp-a, experiments/exp-c-bonsai -> exp-c,
+experiments/exp-c-bonsai-demo -> exp-c-demo). docs/paper/tables/ holds generated files only: a .tex
+file there that this script does not write is deleted on writing and reported by --check.
 
-EXPERIMENT C. Until experiments/exp-c-*/expected/*.json exists, the exp-c tables are clearly marked
-placeholders that list the planned comparisons (Ternary Bonsai 2 against bf16 Qwen3.8-27B on
-HumanEvalFix, with a Q8_0 engine-control arm) with every number pending. Once its reports are
-committed, the same names are filled from them like any other experiment.
+TWO LAYOUTS. An experiment whose reports all compare the same two arms (experiment A) gets one gate
+row per feature and split. An experiment with several comparisons (experiment C) gets one gate row
+per comparison, feature and split, ordered by the comparison ids of COMPARISONS (C0, the no-op
+rerun that measures the noise floor, first), with each comparison's mean completion tokens; and an
+arms table with one row per arm, feature and split (an arm's metrics are the same in every report
+that contains it, and the script refuses reports where they are not). The only arithmetic is the
+ratio of the two reported mean completion lengths in the token column.
 
 The tables use plain tabular with \\hline rules (no booktabs), so they compile with IEEEtran alone.
 Standard library only.
@@ -56,17 +60,22 @@ MARKER = re.compile(
     re.DOTALL,
 )
 
-# The planned arms and comparisons of experiment C (placeholders until its reports exist).
-EXP_C_ARMS = (
-    ("bf16-vllm", "Qwen3.8-27B, bf16 weights, served by vLLM"),
-    ("q8-llamacpp", "Qwen3.8-27B, Q8_0 GGUF, served by llama.cpp (engine control)"),
-    ("ternary-q2-llamacpp", "Ternary Bonsai 2 27B, Q2_0 ternary GGUF, served by llama.cpp"),
-)
-EXP_C_COMPARISONS = (
-    ("C1", "bf16-vllm", "q8-llamacpp", "the engine change (and 8-bit rounding): the engine control"),
-    ("C2", "q8-llamacpp", "ternary-q2-llamacpp", "the ternary model at a fixed engine"),
-    ("C3", "bf16-vllm", "ternary-q2-llamacpp", "the whole deployment change"),
-)
+# What the arms of the experiments with several comparisons are (the reports carry only the arm's
+# name and its served model name, which is `qwen38` for every arm of experiment C).
+ARM_DESCRIPTIONS = {
+    "bf16-vllm": "Qwen3.8-27B, bf16 weights, served by vLLM",
+    "bf16-vllm-rerun": "bf16-vllm recorded a second time (the no-op arm)",
+    "q8-llamacpp": "Qwen3.8-27B, Q8_0 GGUF, served by llama.cpp b12682 (engine control)",
+    "ternary-llamacpp": "Ternary Bonsai 2 27B, Q2_0 GGUF, served by llama.cpp b12682",
+}
+ARM_ORDER = tuple(ARM_DESCRIPTIONS)
+# (candidate, baseline) -> (comparison id, what the comparison isolates).
+COMPARISONS = {
+    ("bf16-vllm-rerun", "bf16-vllm"): ("C0", "noise floor: the same model, engine and settings recorded twice"),
+    ("q8-llamacpp", "bf16-vllm"): ("C1", "engine change and 8-bit rounding (the engine control)"),
+    ("ternary-llamacpp", "q8-llamacpp"): ("C2", "the ternary model at a fixed engine"),
+    ("ternary-llamacpp", "bf16-vllm"): ("C3", "the whole deployment change"),
+}
 
 
 class ReportError(ValueError):
@@ -110,11 +119,12 @@ def experiment_id(dirname: str) -> str:
     m = re.match(r"(exp-[a-z0-9]+)", dirname)
     if not m:
         raise ReportError(f"experiments/{dirname}: the directory name must start with exp-<letter>")
-    return m.group(1)
+    return m.group(1) + ("-demo" if dirname.endswith("-demo") else "")
 
 
 def experiment_title(eid: str) -> str:
-    return "Experiment " + eid.split("-", 1)[1].upper()
+    parts = eid.split("-")
+    return "Experiment " + parts[1].upper() + (" (demo suite)" if parts[2:] == ["demo"] else "")
 
 
 TEX_SPECIAL = {"\\": r"\textbackslash{}", "&": r"\&", "%": r"\%", "$": r"\$", "#": r"\#", "_": r"\_",
@@ -170,6 +180,17 @@ class Row:
     def verdict(self) -> str:
         return "PROMOTE" if self.promote else "REJECT"
 
+    @property
+    def pair(self) -> tuple[str, str]:
+        """(candidate arm, baseline arm)."""
+        return str(self.candidate.get("name")), str(self.baseline.get("name"))
+
+    @property
+    def comparison_id(self) -> str:
+        """The comparison's id from COMPARISONS, or "<candidate> vs <baseline>" for a pair it does not list."""
+        known = COMPARISONS.get(self.pair)
+        return known[0] if known else f"{self.pair[0]} vs {self.pair[1]}"
+
 
 def load_report(path: Path, root: Path) -> Row:
     rel = path.relative_to(root).as_posix()
@@ -212,10 +233,40 @@ def load_experiments(root: Path) -> dict[str, list[Row]]:
         if dirs.setdefault(eid, row.experiment) != row.experiment:
             raise ReportError(f"experiments/{row.experiment} and experiments/{dirs[eid]} share the id {eid}")
         groups.setdefault(eid, []).append(row)
+    order = {cid: n for n, (cid, _what) in enumerate(sorted(COMPARISONS.values()))}
     for rows in groups.values():
-        rows.sort(key=lambda w: (w.feature, SPLIT_ORDER.get(w.split, 9), w.split,
-                                 str(w.baseline.get("name")), str(w.candidate.get("name"))))
+        rows.sort(key=lambda w: (order.get(w.comparison_id, len(order)), w.comparison_id, w.feature,
+                                 SPLIT_ORDER.get(w.split, 9), w.split))
     return dict(sorted(groups.items()))
+
+
+def several_comparisons(rows: Sequence[Row]) -> bool:
+    return len({r.pair for r in rows}) > 1
+
+
+def unique_arms(rows: Sequence[Row]) -> list[tuple[Row, Mapping[str, Any]]]:
+    """One (row, arm) per arm, feature and split, in ARM_ORDER. An arm's metrics do not depend on the
+    arm it is compared with; two reports that disagree about them are refused."""
+    seen: dict[tuple[str, str, str], tuple[Row, Mapping[str, Any]]] = {}
+    for r in rows:
+        for arm in (r.baseline, r.candidate):
+            key = (r.feature, r.split, str(arm.get("name")))
+            if key in seen and seen[key][1].get("metrics") != arm.get("metrics"):
+                raise ReportError(f"{r.source} and {seen[key][0].source} report different metrics for arm "
+                                  f"{key[2]} ({key[0]}, {key[1]})")
+            seen.setdefault(key, (r, arm))
+    rank = {name: n for n, name in enumerate(ARM_ORDER)}
+    return [seen[k] for k in sorted(seen, key=lambda k: (k[0], SPLIT_ORDER.get(k[1], 9), k[1],
+                                                           rank.get(k[2], len(rank)), k[2]))]
+
+
+def comparisons_of(rows: Sequence[Row]) -> list[tuple[str, str, str, str]]:
+    """(id, candidate, baseline, what it isolates) of each comparison, in row order."""
+    out: list[tuple[str, str, str, str]] = []
+    for r in rows:
+        if r.comparison_id not in [c[0] for c in out]:
+            out.append((r.comparison_id, r.pair[0], r.pair[1], COMPARISONS.get(r.pair, ("", ""))[1]))
+    return out
 
 
 # ----------------------------------------------------------------------------- table content
@@ -242,6 +293,25 @@ def gate_cells(row: Row) -> list[str]:
             METRIC_NAMES.get(row.metric, row.metric), arm_primary(row, row.baseline), arm_primary(row, row.candidate),
             f"{signed(c.get('delta'))} {interval(c.get('ci95'), sign=True)}", f"{c.get('gains')} / {c.get('losses')}",
             pval(c.get("mcnemar_p")), num(c.get("mde80")), row.verdict, ", ".join(row.failed_gates) or "none"]
+
+
+def tokens_cell(row: Row) -> str:
+    """Candidate and baseline mean completion tokens, and their ratio."""
+    cand = float(row.candidate["metrics"].get("completion_tokens_mean") or 0)
+    base = float(row.baseline["metrics"].get("completion_tokens_mean") or 0)
+    ratio = f" ({cand / base:.2f}x)" if base else ""
+    return f"{cand:.0f} / {base:.0f}{ratio}"
+
+
+MULTI_GATE_HEAD = ("Comparison", "Feature", "Split", "Items", "Baseline arm", "Candidate arm", "Baseline", "Candidate",
+                   "Δ [95% CI]", "Gains / losses", "McNemar p", "MDE80", "Tokens (cand. / base)", "Verdict",
+                   "Failed gates")
+
+
+def multi_gate_cells(row: Row) -> list[str]:
+    c = gate_cells(row)
+    return [row.comparison_id, c[0], c[1], c[2], row.pair[1], row.pair[0], c[6], c[7], c[8], c[9], c[10], c[11],
+            tokens_cell(row), c[12], c[13]]
 
 
 ARMS_HEAD = ("Feature", "Split", "Arm", "Model", "Prompt", "Primary [95% CI]", "Schema", "Think",
@@ -288,29 +358,56 @@ def md_arms(eid: str, rows: Sequence[Row]) -> str:
             f"Generated by `{SCRIPT}`.*\n\n" + md_table(ARMS_HEAD, body))
 
 
-PLACEHOLDER_NOTE = ("PLACEHOLDER: Experiment C has not been recorded. No `experiments/exp-c-*/expected/*.json` "
-                    f"exists, so every number below is pending. `{SCRIPT}` replaces this table with the "
-                    "measured one when the experiment's reports are committed.")
+def comparison_legend(rows: Sequence[Row]) -> str:
+    return "; ".join(f"{cid}: {cand} against {base}" + (f", {what}" if what else "")
+                     for cid, cand, base, what in comparisons_of(rows))
 
 
-def md_exp_c_placeholder() -> tuple[str, str]:
-    arms = dict(EXP_C_ARMS)
-    gate = (f"> **{PLACEHOLDER_NOTE}**\n\n*Table: Experiment C (planned), gate decisions on the HumanEvalFix suite.*\n\n"
-            + md_table(("Comparison", "Baseline arm", "Candidate arm", "Isolates", "Baseline", "Candidate", "Δ [95% CI]",
-                        "Gains / losses", "McNemar p", "MDE80", "Verdict", "Failed gates"),
-                       ([cid, f"{b}: {arms[b]}", f"{c}: {arms[c]}", what] + ["pending"] * 8
-                        for cid, b, c, what in EXP_C_COMPARISONS)))
-    arm_table = (f"> **{PLACEHOLDER_NOTE}**\n\n*Table: Experiment C (planned), per-arm metrics.*\n\n"
-                 + md_table(("Arm", "Description", "Primary [95% CI]", "Schema", "Think", "Truncated", "Mean tokens"),
-                            ([a, d] + ["pending"] * 5 for a, d in EXP_C_ARMS)))
-    return gate, arm_table
+def arm_legend(rows: Sequence[Row]) -> str:
+    names: list[str] = []
+    for _r, arm in unique_arms(rows):
+        if str(arm.get("name")) not in names:
+            names.append(str(arm.get("name")))
+    return "; ".join(f"{n}: {ARM_DESCRIPTIONS[n]}" if n in ARM_DESCRIPTIONS else n for n in names)
+
+
+def md_gate_multi(eid: str, rows: Sequence[Row]) -> str:
+    return (f"*Table: {experiment_title(eid)}, `experiments/{rows[0].experiment}`: gate decisions under rule "
+            f"`{rows[0].rule}` on suite `{rows[0].suite.get('name')}`, one row per comparison, feature and split. "
+            f"Comparisons: {comparison_legend(rows)}. Δ is candidate minus baseline on the paired items, with its "
+            f"paired cluster-bootstrap 95% interval; MDE80 is the minimum detectable effect at 80% power; Tokens are "
+            f"the two arms' mean completion tokens per item and their ratio. Generated by `{SCRIPT}` from "
+            f"the {len(rows)} reports `experiments/{rows[0].experiment}/expected/<candidate>--vs--<baseline>."
+            f"<feature>-<split>.json`.*\n\n" + md_table(MULTI_GATE_HEAD, (multi_gate_cells(r) for r in rows)))
+
+
+MULTI_ARMS_HEAD = ("Feature", "Split", "Arm", "Primary [95% CI]", "Schema", "Think", "Lenient only", "Truncated",
+                   "Mean tokens", "Total tokens", "Median latency (s)", "Feature-specific")
+
+
+def multi_arm_cells(row: Row, arm: Mapping[str, Any]) -> list[str]:
+    c = arm_cells(row, arm)
+    total = arm["metrics"].get("completion_tokens_total")
+    return [c[0], c[1], c[2], c[5], c[6], c[7], c[8], c[9], c[10], "n/a" if total is None else f"{int(total)}",
+            c[11], c[12]]
+
+
+def md_arms_multi(eid: str, rows: Sequence[Row]) -> str:
+    return (f"*Table: {experiment_title(eid)}, per-arm metrics, one row per arm, feature and split. Arms: "
+            f"{arm_legend(rows)}. Every arm was served under the model name "
+            f"`{_models(rows, 'candidate')}`. Primary intervals are Wilson (resolved rate) or a task-cluster "
+            f"bootstrap (balanced accuracy); \"Truncated\" counts replies that ended at `max_tokens`. The manifests "
+            f"do not record the hardware or load of a recording, so latency is not comparable across engines. "
+            f"Generated by `{SCRIPT}`.*\n\n" + md_table(MULTI_ARMS_HEAD, (multi_arm_cells(r, a) for r, a in unique_arms(rows))))
 
 
 def md_warnings(rows: Sequence[Row]) -> str:
     lines = []
+    multi = several_comparisons(rows)
     for r in rows:
         for w in r.warnings:
-            lines.append(f"- `{r.feature}`, {r.split}: {w}")
+            where = f"{r.comparison_id}, " if multi else ""
+            lines.append(f"- {where}`{r.feature}`, {r.split}: {w}")
     return "\n".join(lines) + "\n" if lines else "- none\n"
 
 
@@ -384,20 +481,40 @@ def tex_arms(eid: str, rows: Sequence[Row]) -> str:
     return tex_table(f"tab:{eid}-arms", caption, "lllllrrrrrl", TEX_ARMS_HEAD, body, head_is_tex=True)
 
 
-TEX_PLACEHOLDER = (r"\textbf{PLACEHOLDER: Experiment C has not been recorded; all numbers are pending. "
-                   r"The table is regenerated from \texttt{experiments/exp-c-*/expected} when it exists.}")
+TEX_MULTI_GATE_HEAD = ("Comp.", "Feature", "Split", "$n$", "Base", "Cand.", r"$\Delta$ [95\% CI]", "G/L",
+                       "McNemar $p$", r"MDE$_{80}$", "Tokens c./b.", "Verdict", "Failed gates")
 
 
-def tex_exp_c_placeholder() -> tuple[str, str]:
-    arms = dict(EXP_C_ARMS)
-    gate = tex_table("tab:exp-c-gate", "Experiment C (planned): Ternary Bonsai 2 against bf16 Qwen3.8-27B on "
-                     "HumanEvalFix, gate decisions. " + TEX_PLACEHOLDER, r"lllp{0.25\textwidth}llll",
-                     ("Comp.", "Baseline arm", "Candidate arm", "Isolates", "Base", "Cand.", "Delta [95% CI]", "Verdict"),
-                     ([cid, b, c, what, "pending", "pending", "pending", "pending"] for cid, b, c, what in EXP_C_COMPARISONS))
-    arm_table = tex_table("tab:exp-c-arms", "Experiment C (planned): arms. " + TEX_PLACEHOLDER, "llllll",
-                          ("Arm", "Description", "Primary [95% CI]", "Schema", "Think", "Tokens"),
-                          ([a, arms[a]] + ["pending"] * 4 for a, _ in EXP_C_ARMS))
-    return gate, arm_table
+def tex_gate_multi(eid: str, rows: Sequence[Row]) -> str:
+    body = []
+    for r in rows:
+        c = multi_gate_cells(r)
+        body.append([c[0], c[1], c[2], c[3], c[6], c[7], c[8], c[9], c[10], c[11], c[12], c[13], c[14]])
+    caption = (f"{tex(experiment_title(eid))}: gate decisions, rule \\texttt{{{tex(rows[0].rule)}}}, suite "
+               f"\\texttt{{{tex(str(rows[0].suite.get('name')))}}}, one row per comparison, feature and split. "
+               f"Comparisons: {tex(comparison_legend(rows))}. Primary metric: resolved rate (bugfix) or balanced "
+               r"accuracy (judge); Base and Cand.\ are the baseline's and the candidate's. $\Delta$ is candidate minus "
+               r"baseline on paired items with a paired cluster-bootstrap 95\% interval; G/L are discordant gains and "
+               r"losses; MDE$_{80}$ is the minimum detectable effect at 80\% power; Tokens are the mean completion "
+               r"tokens per item of candidate and baseline, and their ratio. Generated from the committed reports in "
+               r"\texttt{" + tex(f"experiments/{rows[0].experiment}/expected") + "}.")
+    return tex_table(f"tab:{eid}-gate", caption, r"lllrllllrrllp{0.09\textwidth}", TEX_MULTI_GATE_HEAD, body,
+                     head_is_tex=True)
+
+
+TEX_MULTI_ARMS_HEAD = ("Feature", "Split", "Arm", "Primary [95\\% CI]", "Schema", "Think", "Len.\\ only", "Trunc.",
+                       "Tokens", "Total", "Feature-specific")
+
+
+def tex_arms_multi(eid: str, rows: Sequence[Row]) -> str:
+    body = []
+    for r, arm in unique_arms(rows):
+        c = multi_arm_cells(r, arm)
+        body.append([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[11]])
+    caption = (f"{tex(experiment_title(eid))}: per-arm metrics. Arms: {tex(arm_legend(rows))}. Intervals are Wilson "
+               "(resolved rate) or a task-cluster bootstrap (balanced accuracy). Trunc.\\ counts replies cut at the "
+               "token limit; Tokens is the mean and Total the sum of completion tokens.")
+    return tex_table(f"tab:{eid}-arms", caption, "llllrrrrrrl", TEX_MULTI_ARMS_HEAD, body, head_is_tex=True)
 
 
 # ----------------------------------------------------------------------------- assembling
@@ -413,17 +530,13 @@ def build(root: Path) -> tuple[dict[str, str], dict[str, str]]:
            "copied from a gate report that the CI job `experiments` reproduces byte for byte from the recorded "
            "cassettes. Rerun the script after any report changes; `tests/test_report_tables.py` fails until then.", ""]
     for eid, rows in groups.items():
-        blocks[f"{eid}-gate"] = md_gate(eid, rows)
-        blocks[f"{eid}-arms"] = md_arms(eid, rows)
-        files[f"docs/paper/tables/{eid}-gate.tex"] = tex_gate(eid, rows)
-        files[f"docs/paper/tables/{eid}-arms.tex"] = tex_arms(eid, rows)
+        multi = several_comparisons(rows)
+        blocks[f"{eid}-gate"] = (md_gate_multi if multi else md_gate)(eid, rows)
+        blocks[f"{eid}-arms"] = (md_arms_multi if multi else md_arms)(eid, rows)
+        files[f"docs/paper/tables/{eid}-gate.tex"] = (tex_gate_multi if multi else tex_gate)(eid, rows)
+        files[f"docs/paper/tables/{eid}-arms.tex"] = (tex_arms_multi if multi else tex_arms)(eid, rows)
         doc += [f"## {experiment_title(eid)}: `experiments/{rows[0].experiment}`", "", blocks[f"{eid}-gate"],
                 blocks[f"{eid}-arms"], "Warnings the reports carry:", "", md_warnings(rows)]
-    if "exp-c" not in groups:
-        blocks["exp-c-gate"], blocks["exp-c-arms"] = md_exp_c_placeholder()
-        files["docs/paper/tables/exp-c-gate.tex"], files["docs/paper/tables/exp-c-arms.tex"] = tex_exp_c_placeholder()
-        doc += ["## Experiment C (planned): Ternary Bonsai 2 against bf16 Qwen3.8-27B on HumanEvalFix", "",
-                blocks["exp-c-gate"], blocks["exp-c-arms"]]
     files["docs/report/tables.md"] = "\n".join(doc).rstrip("\n") + "\n"
     return files, blocks
 

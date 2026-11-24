@@ -1,0 +1,305 @@
+{
+  "baseline": {
+    "fingerprint": "a69436ad0ccbcb10ed020ccfc03953bb0213b19866c5ea3d06225a4ffac6b685",
+    "metrics": {
+      "accuracy": 1.0,
+      "approve_rate": 0.5,
+      "balanced_accuracy": 1.0,
+      "balanced_accuracy_ci95": [
+        1.0,
+        1.0
+      ],
+      "completion_tokens_mean": 512.357143,
+      "completion_tokens_total": 21519,
+      "confusion": {
+        "fn": 0,
+        "fp": 0,
+        "invalid_neg": 0,
+        "invalid_pos": 0,
+        "tn": 21,
+        "tp": 21
+      },
+      "f1": 1.0,
+      "finish_reasons": {
+        "stop": 42
+      },
+      "items": 42,
+      "latency_median_s": 4.709799,
+      "lenient_only_rate": 0.0,
+      "negatives": 21,
+      "paired_items": 42,
+      "paired_tasks": 21,
+      "positives": 21,
+      "precision": 1.0,
+      "primary": 1.0,
+      "primary_metric": "balanced_accuracy",
+      "schema_validity": 1.0,
+      "schema_validity_ci95": [
+        0.916201,
+        1.0
+      ],
+      "think_validity": 1.0,
+      "tnr": 1.0,
+      "tnr_ci95": [
+        0.845361,
+        1.0
+      ],
+      "tpr": 1.0,
+      "tpr_ci95": [
+        0.845361,
+        1.0
+      ],
+      "unpaired_items": 0,
+      "vs_chance": true
+    },
+    "model": "qwen38",
+    "name": "bf16-vllm",
+    "notes": [],
+    "prompt": "judge/v2",
+    "prompt_sha256": "f0991b81e96f73d62fb4330cfcd560644ca8063adb01e50743908ca72585e039",
+    "recorded_suite_sha256": "28354bed10832147d9397bdf5a6c8322f91563cf30fd5843c7829278b7083124",
+    "source": "experiments/exp-c-bonsai-demo/bf16-vllm",
+    "synthetic": false
+  },
+  "candidate": {
+    "fingerprint": "e7797256cd5a12d8599d624311f25a795c6afc72df2692cf9aa64cf4e036df9e",
+    "metrics": {
+      "accuracy": 0.97619,
+      "approve_rate": 0.5,
+      "balanced_accuracy": 0.97619,
+      "balanced_accuracy_ci95": [
+        0.925,
+        1.0
+      ],
+      "completion_tokens_mean": 563.52381,
+      "completion_tokens_total": 23668,
+      "confusion": {
+        "fn": 0,
+        "fp": 0,
+        "invalid_neg": 1,
+        "invalid_pos": 0,
+        "tn": 20,
+        "tp": 21
+      },
+      "f1": 1.0,
+      "finish_reasons": {
+        "stop": 42
+      },
+      "items": 42,
+      "latency_median_s": 33.089968,
+      "lenient_only_rate": 0.02381,
+      "negatives": 21,
+      "paired_items": 42,
+      "paired_tasks": 21,
+      "positives": 21,
+      "precision": 1.0,
+      "primary": 0.97619,
+      "primary_metric": "balanced_accuracy",
+      "schema_validity": 0.97619,
+      "schema_validity_ci95": [
+        0.876788,
+        0.995785
+      ],
+      "think_validity": 0.97619,
+      "tnr": 0.952381,
+      "tnr_ci95": [
+        0.773306,
+        0.991544
+      ],
+      "tpr": 1.0,
+      "tpr_ci95": [
+        0.845361,
+        1.0
+      ],
+      "unpaired_items": 0,
+      "vs_chance": true
+    },
+    "model": "qwen38",
+    "name": "q8-llamacpp",
+    "notes": [],
+    "prompt": "judge/v2",
+    "prompt_sha256": "f0991b81e96f73d62fb4330cfcd560644ca8063adb01e50743908ca72585e039",
+    "recorded_suite_sha256": "28354bed10832147d9397bdf5a6c8322f91563cf30fd5843c7829278b7083124",
+    "source": "experiments/exp-c-bonsai-demo/q8-llamacpp",
+    "synthetic": false
+  },
+  "comparison": {
+    "alpha": 0.05,
+    "baseline": 1.0,
+    "candidate": 0.97619,
+    "ci95": [
+      -0.075,
+      0.0
+    ],
+    "clusters": 20,
+    "delta": -0.02381,
+    "feature": "judge",
+    "gains": 0,
+    "losses": 1,
+    "mcnemar_p": 1.0,
+    "mde80": 0.064282,
+    "metric": "balanced_accuracy",
+    "min_significant_losses": 6,
+    "n": 42,
+    "resamples": 2000,
+    "se": 0.022945,
+    "seed": 0,
+    "unpaired": []
+  },
+  "config": {
+    "alpha": 0.05,
+    "floor": null,
+    "margin": 0.0,
+    "max_new_sast": 0,
+    "require_gain": false,
+    "schema_min": 0.95,
+    "think_min": 0.9,
+    "tie": "pass"
+  },
+  "feature": "judge",
+  "gates": [
+    {
+      "bound": 0.95,
+      "enforced": true,
+      "gate": "schema_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 0.97619
+    },
+    {
+      "bound": 0.9,
+      "enforced": true,
+      "gate": "think_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 0.97619
+    },
+    {
+      "applicable": false,
+      "bound": 0,
+      "enforced": false,
+      "gate": "new_sast_violations",
+      "op": "<=",
+      "passed": true,
+      "reason": "judge replies hold no code to scan",
+      "value": null
+    },
+    {
+      "at_bound": false,
+      "baseline": 1.0,
+      "bound": 0.0,
+      "bound_source": "baseline",
+      "candidate": 0.97619,
+      "compares": "delta = candidate - baseline",
+      "enforced": true,
+      "gate": "primary",
+      "margin": 0.0,
+      "metric": "balanced_accuracy",
+      "op": ">=",
+      "passed": false,
+      "tie": "pass",
+      "value": -0.02381
+    },
+    {
+      "applicable": true,
+      "bound": 0.05,
+      "condition": "losses > gains and mcnemar_p < alpha",
+      "enforced": true,
+      "gains": 0,
+      "gate": "regression_test",
+      "losses": 1,
+      "op": "not",
+      "passed": true,
+      "test": "exact two-sided McNemar on the discordant items",
+      "value": 1.0
+    }
+  ],
+  "gates_passed": false,
+  "promote": false,
+  "provenance": {
+    "exec_rule": "values/1",
+    "harness_version": "0.1.0",
+    "prompt_current": "judge/v2",
+    "sast": {
+      "fingerprint": "c8d57f61ce8532471b51e5ebe3be7de606ffd1d67c7bac195cc72be33e39b960",
+      "rules": [
+        {
+          "cwe": "CWE-95",
+          "id": "eval-exec",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "os-command",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "shell-true",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-502",
+          "id": "unsafe-deserialization",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "process-control",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "interpreter-tamper",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "subprocess",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-470",
+          "id": "dynamic-import",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-73",
+          "id": "file-write",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "network",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "introspection",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "exit-call",
+          "severity": "flag"
+        }
+      ],
+      "ruleset": "sast/1"
+    }
+  },
+  "rule": "noninferior/1",
+  "schema": "llm_eval_harness.report/1",
+  "split": "heldout",
+  "suite": {
+    "heldout_pct": 50,
+    "items": 42,
+    "name": "demo",
+    "sha256": "28354bed10832147d9397bdf5a6c8322f91563cf30fd5843c7829278b7083124",
+    "split_sha256": "40bc1dee4633b85e0ec02397800ac3302e0acdd53bbba984e2c39e1ada852468",
+    "synthetic": true,
+    "tasks": 21
+  },
+  "warnings": [
+    "42 paired items: with no gains, at least 6 losses are needed before McNemar calls a regression significant at alpha 0.05; mde80 0.064."
+  ]
+}

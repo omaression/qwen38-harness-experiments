@@ -8,13 +8,13 @@ The text is written formally and in the third person. Every claim in it is meant
 
 | Section | File | Source material in the repository |
 |---|---|---|
-| Abstract, Index Terms | [01-abstract.md](01-abstract.md) | the results of Sections V-A to V-D |
+| Abstract, Index Terms | [01-abstract.md](01-abstract.md) | the results of Sections V-A to V-F |
 | I. Introduction: problem, motivation, numbered contributions | [02-introduction.md](02-introduction.md) | `README.md`; `docs/DESIGN.md` sections 1 and 13; the modules named in each contribution |
 | II. Related Work | [03-related-work.md](03-related-work.md) | [09-references.md](09-references.md) only |
 | III. System Design: architecture and data flow, the features, scoring, SAST, sandbox, statistics, the gate rule, ledger, CI, report generation | [04-system-design.md](04-system-design.md) | `docs/DESIGN.md` sections 2 to 12; `src/llm_eval_harness/{records,tasks,prompts,clients,cassettes,features,verdicts,sast,sandbox,metrics,gate,ledger}.py`; `.github/workflows/ci.yml`; `scripts/make_report_tables.py` |
-| IV. Experimental Methodology: suites and splits, arms, recording, replay determinism, hypotheses H1 to H6, analysis plan | [05-methodology.md](05-methodology.md) | `tasks/demo/`; `tasks/humanevalfix/` and `scripts/import_humanevalfix.py` (Experiment C's suite); `scripts/make_demo_cassettes.py`; `experiments/exp-a-qwen38/README.md` and `*/manifest.json`; the CI job `experiments` |
+| IV. Experimental Methodology: suites and splits, arms, recording, replay determinism, hypotheses H1 to H6, analysis plan | [05-methodology.md](05-methodology.md) | `tasks/demo/`; `tasks/humanevalfix/` and `scripts/import_humanevalfix.py` (Experiment C's suite); `scripts/make_demo_cassettes.py`; `experiments/exp-*/README.md` and `*/manifest.json`; the CI job `experiments` |
 | V. Results | [06-results.md](06-results.md) | generated tables (below); `README.md` "The demo results" (pinned by `tests/test_demo.py`); per-item rows from `llm-eval gate --items-out` |
-| VI. Discussion and Threats to Validity: internal, external, construct and conclusion validity | [07-discussion.md](07-discussion.md) | Sections V-C to V-E; `docs/DESIGN.md` section 14; `README.md` "Limitations" |
+| VI. Discussion and Threats to Validity: internal, external, construct and conclusion validity | [07-discussion.md](07-discussion.md) | Sections V-C to V-G; `tasks/humanevalfix/README.md` section 8; `docs/DESIGN.md` section 14; `README.md` "Limitations" |
 | VII. Conclusion and Future Work | [08-conclusion.md](08-conclusion.md) | Sections V and VI |
 | References | [09-references.md](09-references.md) | `docs/paper/refs.bib` (same entries, same order) |
 | Result tables | [tables.md](tables.md) | generated from `experiments/*/expected/*.json` |
@@ -24,7 +24,10 @@ The text is written formally and in the third person. Every claim in it is meant
 | Claim | Evidence |
 |---|---|
 | Experiment A's gate decisions, deltas, intervals, gains and losses, McNemar p, MDE80, failed gates, per-arm metrics | `experiments/exp-a-qwen38/expected/{bugfix,judge}-{heldout,dev}.json`, through the generated tables |
-| Every Experiment A report is reproduced byte for byte | the CI job `experiments` in `.github/workflows/ci.yml` |
+| Every experiment report (4 of Experiment A, 16 of Experiment C, 12 of its demo replication) is reproduced byte for byte | the CI job `experiments` in `.github/workflows/ci.yml` |
+| Experiment C's gate decisions, deltas, intervals, gains and losses, McNemar p, MDE80, token means and ratios, per-arm metrics | `experiments/exp-c-bonsai/expected/<candidate>--vs--<baseline>.<feature>-<split>.json` and `experiments/exp-c-bonsai-demo/expected/*.json`, through the generated tables |
+| Experiment C's discordant items and their classification (Sections V-F, V-G) | `llm-eval gate --suite tasks/<SUITE> --feature <f> --split <s> --candidate experiments/<exp>/<arm> --baseline none --items-out DIR` for each arm, then the `correct`, `problems`, `finish_reason` and `think_words` fields of the rows, joined on `item_id` |
+| Recording settings of Experiment C, and the publisher's retention figure and effort guidance | `experiments/exp-c-bonsai*/*/manifest.json`, `experiments/exp-c-bonsai/README.md`; reference [31] (model card and its `KNOWN_ISSUES.md`) |
 | The seven discordant items and their classification (Section V-D) | `llm-eval gate --feature <f> --split <s> --candidate experiments/exp-a-qwen38/qwen38-adapters --baseline experiments/exp-a-qwen38/qwen38-base --items-out DIR`, then the `problems`, `finish_reason` and `think_words` fields of the rows in `DIR` |
 | The synthetic arms' decisions (Section V-A) | `README.md` "The demo results" and `docs/DESIGN.md` "Demo results", pinned by `tests/test_demo.py` |
 | Recording settings of Experiment A | `experiments/exp-a-qwen38/qwen38-base/manifest.json`, `experiments/exp-a-qwen38/qwen38-adapters/manifest.json`, `experiments/exp-a-qwen38/README.md` |
@@ -40,16 +43,11 @@ python scripts/make_report_tables.py          # rewrite the tables after any rep
 python scripts/make_report_tables.py --check  # what tests/test_report_tables.py runs
 ```
 
-The script reads every `experiments/*/expected/*.json` and writes `docs/report/tables.md`, `docs/paper/tables/<id>-gate.tex` and `<id>-arms.tex` for each experiment (`<id>` is `exp-a` for `experiments/exp-a-qwen38`), and the text between `<!-- BEGIN GENERATED: <name> -->` and `<!-- END GENERATED: <name> -->` in these markdown files. It only formats numbers; it computes no statistic. Never edit a generated table by hand: `tests/test_report_tables.py` fails until the script has been rerun.
+The script reads every `experiments/*/expected/*.json` and writes `docs/report/tables.md`, `docs/paper/tables/<id>-gate.tex` and `<id>-arms.tex` for each experiment (`<id>` is the directory's leading `exp-<letter>`, with `-demo` appended for a directory ending in `-demo`: `exp-a`, `exp-c` and `exp-c-demo`), and the text between `<!-- BEGIN GENERATED: <name> -->` and `<!-- END GENERATED: <name> -->` in these markdown files. It only formats numbers; it computes no statistic. Never edit a generated table by hand: `tests/test_report_tables.py` fails until the script has been rerun.
 
 ## Experiment C
 
-Experiment C (Ternary Bonsai 2 against bf16 Qwen3.8-27B on HumanEvalFix; arms bf16 under vLLM, Q2_0 ternary under llama.cpp, and Q8_0 under llama.cpp as the engine control) has not been recorded. Its tables are placeholders marked **PLACEHOLDER**, with every number pending. When the experiment is recorded:
-
-1. Commit its cassettes and reports under `experiments/exp-c-<name>/`, with one gate report per comparison in `expected/`. Its README fixes the margin and tie rule before recording (hypothesis H6 depends on them).
-2. Run `python scripts/make_report_tables.py`. The `exp-c-gate` and `exp-c-arms` tables are then filled from the reports, under the same names, in `tables.md`, Section V-F and `docs/paper/tables/`.
-3. Update the prose that still says Experiment C is pending: Sections V-F (H5, H6), VI-B (engine confounds), VII (future work item 5), the abstract if the result belongs there, and the same passages of `docs/paper/main.tex`. Add the suite's size and split to Section IV-A.
-4. The CI job `experiments` replays the arms `qwen38-adapters` and `qwen38-base` by name. An experiment with other arm names needs that job extended before its reports are checked in CI.
+Experiment C (Ternary Bonsai 2 against bf16 Qwen3.8-27B on HumanEvalFix, with a Q8_0 engine-control arm and a no-op rerun of the bf16 arm) is recorded in `experiments/exp-c-bonsai/`, and its replication on the demo suite in `experiments/exp-c-bonsai-demo/`. Each experiment directory's `SUITE` file names its suite, and each report is named `<candidate>--vs--<baseline>.<feature>-<split>.json`. The CI job `experiments` reads both from the names, and `scripts/make_report_tables.py` writes one gate row per comparison (C0 to C3, defined in its `COMPARISONS` table) with each comparison's token cost, and one arms row per arm. A new comparison of the same arms needs only a new report; a new arm needs an entry in `ARM_DESCRIPTIONS`, and a new pair an entry in `COMPARISONS`, or it is shown under its arm names.
 
 ## Building the paper
 
