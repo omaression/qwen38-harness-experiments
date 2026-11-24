@@ -1,6 +1,6 @@
-# llm-feature-eval-harness
+# qwen38-harness-experiments
 
-[![CI](https://github.com/omaression/llm-feature-eval-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/omaression/llm-feature-eval-harness/actions/workflows/ci.yml)
+[![CI](https://github.com/omaression/qwen38-harness-experiments/actions/workflows/ci.yml/badge.svg)](https://github.com/omaression/qwen38-harness-experiments/actions/workflows/ci.yml)
 
 An evaluation harness for an LLM feature, with CI regression testing. It was built as a project for
 an AI class.
