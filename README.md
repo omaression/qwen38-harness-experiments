@@ -297,6 +297,13 @@ reach the scripts only as environment variables, and the job commits nothing. It
 artifacts hold the model's replies and the model names. In a public repository, other users may
 be able to download them.
 
+## Experiments on a real model
+
+`experiments/` holds recorded replies of a real open-weight model, for model-side changes put through the gate:
+- `experiments/exp-a-qwen38/`: Qwen3.8-27B with LoRA adapters, served by vLLM. It compares an identity (no-op) adapter for `bugfix` and a trained judge adapter for `judge` against the base model.
+- The no-op adapter is rejected on one noisy item (McNemar p = 1.0). The trained judge gains 15 points on the dev split but cannot show it on a held-out split where the base model is already perfect.
+- The CI job `experiments` replays every experiment and fails when the current harness no longer reproduces its committed reports byte for byte.
+
 ## How to read a report
 
 `llm-eval gate` prints one JSON object (`llm_eval_harness.report/1`):

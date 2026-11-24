@@ -136,6 +136,42 @@ jobs:
           expect_rejected judge '["primary","schema_validity"]'
           exit "$status"
 
+  experiments:
+    name: experiments reproduce (recorded real-model replies)
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the harness
+        run: python -m pip install -e .
+      # Each experiment's committed reports must be reproduced byte for byte from its recorded
+      # cassettes: a change to scoring, statistics or the gate rule that moves a real-model verdict
+      # shows up here as a diff, and is either a bug or a change the reports must be regenerated for.
+      - name: Replay every experiment and compare with its committed reports
+        run: |
+          status=0
+          for exp in experiments/*/; do
+            for report in "$exp"reports/*.json; do
+              name=$(basename "$report" .json); feature=${name%%-*}; split=${name#*-}
+              llm-eval gate --feature "$feature" --split "$split" \
+                --candidate "${exp}qwen38-adapters" --baseline "${exp}qwen38-base" > "/tmp/$name.json"
+              if cmp -s "/tmp/$name.json" "$report"; then
+                echo "$report: reproduced (promote $(jq -r .promote "$report"))"
+              else
+                echo "::error title=Experiment drift::$report is not reproduced by the current harness"
+                diff <(jq -S . "$report") <(jq -S . "/tmp/$name.json") | head -40
+                status=1
+              fi
+            done
+          done
+          exit "$status"
+
   live-config:
     name: live evaluation configured?
     if: github.event_name == 'workflow_dispatch'

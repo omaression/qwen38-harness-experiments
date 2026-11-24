@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 TEXT = WORKFLOW.read_text(encoding="utf-8")
 LINES = TEXT.splitlines()
-JOBS = ("tests", "regression-gate", "live-config", "live-eval")
+JOBS = ("tests", "regression-gate", "experiments", "live-config", "live-eval")
 LIVE_JOBS = ("live-config", "live-eval")
 SECRETS = ("LLM_EVAL_BASE_URL", "LLM_EVAL_API_KEY", "LLM_EVAL_CANDIDATE_MODEL", "LLM_EVAL_BASELINE_MODEL")
 #: What the self-test expects of the regressed candidate (tests/test_demo.py checks the same sets
@@ -280,7 +280,7 @@ def test_the_live_job() -> None:
 # ---- every llm-eval command line parses ----------------------------------------------------------
 
 #: Placeholder values for the shell variables the scripts use.
-VARIABLES = {"f": "bugfix", "FEATURE": "bugfix", "SPLIT": "dev"}
+VARIABLES = {"f": "bugfix", "FEATURE": "bugfix", "SPLIT": "dev", "feature": "bugfix", "split": "dev"}
 
 
 def _substitute(command: str) -> str:
