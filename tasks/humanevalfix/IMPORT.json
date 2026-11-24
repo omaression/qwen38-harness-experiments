@@ -1,0 +1,2163 @@
+{
+  "schema": "llm_eval_harness.import_report/1",
+  "dataset": "bigcode/humanevalpack",
+  "revision": "9a41762f73a8cb23bb5811b73d5aab164efcf378",
+  "file": "python/test-00000-of-00001.parquet",
+  "source_sha256": "ed5f15d789156e21222bfcd556c425a39042355c84ae1e8b058abd6a3d7f8075",
+  "license": "MIT",
+  "verified": true,
+  "rows": 164,
+  "kept": 115,
+  "skipped": 49,
+  "skip_reasons": {
+    "0 expressible hidden test(s) left; the harness needs at least 2": 4,
+    "1 expressible hidden test(s) left; the harness needs at least 2": 3,
+    "a prompt contains the reference code as text, which validation's leakage rule refuses": 7,
+    "no expressible example test (nothing to show)": 14,
+    "the buggy code passes every example test, so the shown tests demonstrate no bug": 12,
+    "the buggy code passes every expressible hidden test": 9
+  },
+  "splits": {
+    "dev": 41,
+    "heldout": 74
+  },
+  "heldout_pct": 60,
+  "tests": {
+    "shown": 320,
+    "hidden": 540
+  },
+  "dropped_asserts_in_kept_tasks": {
+    "hidden: inside a loop or block": 1,
+    "hidden: its call appears in the docstring, so the model is shown it": 4,
+    "hidden: its call is a shown test": 247,
+    "hidden: non-literal argument": 1,
+    "hidden: non-literal expected value": 1,
+    "hidden: repeats an earlier call": 1,
+    "hidden: trivial assert": 36,
+    "shown: trivial assert": 26
+  },
+  "tags": {
+    "excess-logic": 17,
+    "function-misuse": 7,
+    "incorrect-output": 111,
+    "infinite-loop": 3,
+    "missing-logic": 23,
+    "operator-misuse": 18,
+    "stackoverflow": 1,
+    "value-misuse": 32,
+    "variable-misuse": 18
+  },
+  "groups": [
+    [
+      "python-7",
+      "python-29"
+    ],
+    [
+      "python-46",
+      "python-55",
+      "python-63"
+    ]
+  ],
+  "skipped_tasks": [
+    {
+      "id": "python-2",
+      "reason": "a prompt contains the reference code as text, which validation's leakage rule refuses"
+    },
+    {
+      "id": "python-4",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-23",
+      "reason": "a prompt contains the reference code as text, which validation's leakage rule refuses"
+    },
+    {
+      "id": "python-32",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-33",
+      "reason": "0 expressible hidden test(s) left; the harness needs at least 2"
+    },
+    {
+      "id": "python-34",
+      "reason": "0 expressible hidden test(s) left; the harness needs at least 2"
+    },
+    {
+      "id": "python-35",
+      "reason": "1 expressible hidden test(s) left; the harness needs at least 2"
+    },
+    {
+      "id": "python-37",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-38",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-40",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-41",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-43",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-50",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-51",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-52",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-53",
+      "reason": "a prompt contains the reference code as text, which validation's leakage rule refuses"
+    },
+    {
+      "id": "python-54",
+      "reason": "1 expressible hidden test(s) left; the harness needs at least 2"
+    },
+    {
+      "id": "python-56",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-61",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-64",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-67",
+      "reason": "a prompt contains the reference code as text, which validation's leakage rule refuses"
+    },
+    {
+      "id": "python-72",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-81",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-82",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-83",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-84",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-89",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-90",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-92",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-95",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-97",
+      "reason": "a prompt contains the reference code as text, which validation's leakage rule refuses"
+    },
+    {
+      "id": "python-99",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-104",
+      "reason": "0 expressible hidden test(s) left; the harness needs at least 2"
+    },
+    {
+      "id": "python-111",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-113",
+      "reason": "1 expressible hidden test(s) left; the harness needs at least 2"
+    },
+    {
+      "id": "python-119",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-120",
+      "reason": "a prompt contains the reference code as text, which validation's leakage rule refuses"
+    },
+    {
+      "id": "python-124",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-125",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-137",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-138",
+      "reason": "a prompt contains the reference code as text, which validation's leakage rule refuses"
+    },
+    {
+      "id": "python-140",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-141",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-144",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-147",
+      "reason": "the buggy code passes every expressible hidden test"
+    },
+    {
+      "id": "python-149",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-157",
+      "reason": "the buggy code passes every example test, so the shown tests demonstrate no bug"
+    },
+    {
+      "id": "python-160",
+      "reason": "no expressible example test (nothing to show)"
+    },
+    {
+      "id": "python-163",
+      "reason": "0 expressible hidden test(s) left; the harness needs at least 2"
+    }
+  ],
+  "dropped_asserts": [
+    {
+      "id": "python-1",
+      "test": "hidden",
+      "assert": "assert separate_paren_groups('( ) (( )) (( )( ))') == ['()', '(())', '(()())']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-6",
+      "test": "hidden",
+      "assert": "assert parse_nested_parens('(()()) ((())) () ((())()())') == [2, 3, 1, 3]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-8",
+      "test": "hidden",
+      "assert": "assert sum_product([3, 5, 7]) == (3 + 5 + 7, 3 * 5 * 7)",
+      "reason": "non-literal expected value"
+    },
+    {
+      "id": "python-8",
+      "test": "hidden",
+      "assert": "assert sum_product([]) == (0, 1)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-10",
+      "test": "hidden",
+      "assert": "assert make_palindrome('') == ''",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-12",
+      "test": "hidden",
+      "assert": "assert longest([]) == None",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-15",
+      "test": "hidden",
+      "assert": "assert string_sequence(0) == '0'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-20",
+      "test": "hidden",
+      "assert": "assert find_closest_elements([1.0, 2.0, 3.0, 4.0, 5.0, 2.2]) == (2.0, 2.2)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-20",
+      "test": "hidden",
+      "assert": "assert find_closest_elements([1.0, 2.0, 3.0, 4.0, 5.0, 2.0]) == (2.0, 2.0)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-21",
+      "test": "hidden",
+      "assert": "assert rescale_to_unit([1.0, 2.0, 3.0, 4.0, 5.0]) == [0.0, 0.25, 0.5, 0.75, 1.0]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-25",
+      "test": "hidden",
+      "assert": "assert factorize(8) == [2, 2, 2]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-28",
+      "test": "hidden",
+      "assert": "assert concatenate([]) == ''",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-31",
+      "test": "hidden",
+      "assert": "assert is_prime(6) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-31",
+      "test": "hidden",
+      "assert": "assert is_prime(101) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-31",
+      "test": "hidden",
+      "assert": "assert is_prime(11) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-31",
+      "test": "hidden",
+      "assert": "assert is_prime(13441) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-31",
+      "test": "hidden",
+      "assert": "assert is_prime(61) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-31",
+      "test": "hidden",
+      "assert": "assert is_prime(4) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-31",
+      "test": "hidden",
+      "assert": "assert is_prime(1) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-31",
+      "test": "hidden",
+      "assert": "assert is_prime(11) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-36",
+      "test": "hidden",
+      "assert": "assert fizz_buzz(50) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-36",
+      "test": "hidden",
+      "assert": "assert fizz_buzz(78) == 2",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-36",
+      "test": "hidden",
+      "assert": "assert fizz_buzz(79) == 3",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-39",
+      "test": "hidden",
+      "assert": "assert prime_fib(1) == 2",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-39",
+      "test": "hidden",
+      "assert": "assert prime_fib(2) == 3",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-39",
+      "test": "hidden",
+      "assert": "assert prime_fib(3) == 5",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-39",
+      "test": "hidden",
+      "assert": "assert prime_fib(4) == 13",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-39",
+      "test": "hidden",
+      "assert": "assert prime_fib(5) == 89",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-42",
+      "test": "hidden",
+      "assert": "assert incr_list([5, 2, 5, 2, 3, 3, 9, 0, 123]) == [6, 3, 6, 3, 4, 4, 10, 1, 124]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-44",
+      "test": "hidden",
+      "assert": "assert change_base(x, x + 1) == str(x)",
+      "reason": "inside a loop or block"
+    },
+    {
+      "id": "python-44",
+      "test": "hidden",
+      "assert": "assert change_base(8, 3) == '22'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-44",
+      "test": "hidden",
+      "assert": "assert change_base(8, 2) == '1000'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-44",
+      "test": "hidden",
+      "assert": "assert change_base(7, 2) == '111'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-45",
+      "test": "hidden",
+      "assert": "assert triangle_area(5, 3) == 7.5",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-46",
+      "test": "hidden",
+      "assert": "assert fib4(5) == 4",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-47",
+      "test": "hidden",
+      "assert": "assert median([3, 1, 2, 4, 5]) == 3",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-47",
+      "test": "hidden",
+      "assert": "assert median([-10, 4, 6, 1000, 10, 20]) == 8.0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-48",
+      "test": "hidden",
+      "assert": "assert is_palindrome('') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-48",
+      "test": "hidden",
+      "assert": "assert is_palindrome('aba') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-48",
+      "test": "hidden",
+      "assert": "assert is_palindrome('aaaaa') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-48",
+      "test": "hidden",
+      "assert": "assert is_palindrome('zbcd') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-49",
+      "test": "hidden",
+      "assert": "assert modp(3, 5) == 3",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-49",
+      "test": "hidden",
+      "assert": "assert modp(1101, 101) == 2",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-49",
+      "test": "hidden",
+      "assert": "assert modp(0, 101) == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-49",
+      "test": "hidden",
+      "assert": "assert modp(3, 11) == 8",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-49",
+      "test": "hidden",
+      "assert": "assert modp(100, 101) == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-55",
+      "test": "hidden",
+      "assert": "assert fib(10) == 55",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-55",
+      "test": "hidden",
+      "assert": "assert fib(1) == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-55",
+      "test": "hidden",
+      "assert": "assert fib(8) == 21",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-57",
+      "test": "hidden",
+      "assert": "assert monotonic([1, 2, 4, 10]) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-57",
+      "test": "hidden",
+      "assert": "assert monotonic([1, 2, 4, 20]) == True",
+      "reason": "its call appears in the docstring, so the model is shown it"
+    },
+    {
+      "id": "python-57",
+      "test": "hidden",
+      "assert": "assert monotonic([1, 20, 4, 10]) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-57",
+      "test": "hidden",
+      "assert": "assert monotonic([4, 1, 0, -10]) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-58",
+      "test": "hidden",
+      "assert": "assert common([1, 4, 3, 34, 653, 2, 5], [5, 7, 1, 5, 9, 653, 121]) == [1, 5, 653]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-58",
+      "test": "hidden",
+      "assert": "assert common([5, 3, 2, 8], [3, 2]) == [2, 3]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-59",
+      "test": "hidden",
+      "assert": "assert largest_prime_factor(13195) == 29",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-60",
+      "test": "hidden",
+      "assert": "assert sum_to_n(1) == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-60",
+      "test": "hidden",
+      "assert": "assert sum_to_n(30) == 465",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-60",
+      "test": "hidden",
+      "assert": "assert sum_to_n(100) == 5050",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-62",
+      "test": "hidden",
+      "assert": "assert derivative([3, 1, 2, 4, 5]) == [1, 4, 12, 20]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-62",
+      "test": "hidden",
+      "assert": "assert derivative([1, 2, 3]) == [2, 6]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-63",
+      "test": "hidden",
+      "assert": "assert fibfib(2) == 1",
+      "reason": "its call appears in the docstring, so the model is shown it"
+    },
+    {
+      "id": "python-63",
+      "test": "hidden",
+      "assert": "assert fibfib(1) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-63",
+      "test": "hidden",
+      "assert": "assert fibfib(5) == 4",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-63",
+      "test": "hidden",
+      "assert": "assert fibfib(8) == 24",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-65",
+      "test": "hidden",
+      "assert": "assert circular_shift(12, 2) == '12'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-65",
+      "test": "hidden",
+      "assert": "assert circular_shift(12, 1) == '21'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-66",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-66",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-66",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-66",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-66",
+      "test": "hidden",
+      "assert": "assert digitSum('') == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-66",
+      "test": "hidden",
+      "assert": "assert digitSum('abAB') == 131",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-66",
+      "test": "hidden",
+      "assert": "assert digitSum('abcCd') == 67",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-66",
+      "test": "hidden",
+      "assert": "assert digitSum('helloE') == 69",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-66",
+      "test": "hidden",
+      "assert": "assert digitSum('woArBld') == 131",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-66",
+      "test": "hidden",
+      "assert": "assert digitSum('aAaaaXa') == 153",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-68",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-68",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-68",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-68",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-68",
+      "test": "hidden",
+      "assert": "assert pluck([4, 2, 3]) == [2, 1]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-68",
+      "test": "hidden",
+      "assert": "assert pluck([1, 2, 3]) == [2, 1]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-68",
+      "test": "hidden",
+      "assert": "assert pluck([]) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-68",
+      "test": "hidden",
+      "assert": "assert pluck([5, 0, 3, 0, 4, 2]) == [0, 1]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-70",
+      "test": "shown",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-70",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-70",
+      "test": "hidden",
+      "assert": "assert strange_sort_list([1, 2, 3, 4]) == [1, 4, 2, 3]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-70",
+      "test": "hidden",
+      "assert": "assert strange_sort_list([5, 5, 5, 5]) == [5, 5, 5, 5]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-70",
+      "test": "hidden",
+      "assert": "assert strange_sort_list([]) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-71",
+      "test": "hidden",
+      "assert": "assert triangle_area(3, 4, 5) == 6.0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-71",
+      "test": "hidden",
+      "assert": "assert triangle_area(1, 2, 10) == -1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-73",
+      "test": "hidden",
+      "assert": "assert smallest_change([1, 2, 3, 5, 4, 7, 9, 6]) == 4",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-73",
+      "test": "hidden",
+      "assert": "assert smallest_change([1, 2, 3, 4, 3, 2, 2]) == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-73",
+      "test": "hidden",
+      "assert": "assert smallest_change([1, 2, 3, 2, 1]) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-73",
+      "test": "hidden",
+      "assert": "assert smallest_change([3, 1, 1, 3]) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-74",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-74",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-74",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-74",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-74",
+      "test": "hidden",
+      "assert": "assert total_match([], []) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-74",
+      "test": "hidden",
+      "assert": "assert total_match(['hi', 'admin'], ['hi', 'hi', 'admin', 'project']) == ['hi', 'admin']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-74",
+      "test": "hidden",
+      "assert": "assert total_match(['4'], ['1', '2', '3', '4', '5']) == ['4']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-74",
+      "test": "hidden",
+      "assert": "assert total_match(['hi', 'admin'], ['hI', 'Hi']) == ['hI', 'Hi']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-74",
+      "test": "hidden",
+      "assert": "assert total_match(['hi', 'admin'], ['hI', 'hi', 'hi']) == ['hI', 'hi', 'hi']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-75",
+      "test": "hidden",
+      "assert": "assert is_multiply_prime(30) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-76",
+      "test": "hidden",
+      "assert": "assert is_simple_power(1, 4) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-76",
+      "test": "hidden",
+      "assert": "assert is_simple_power(2, 2) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-76",
+      "test": "hidden",
+      "assert": "assert is_simple_power(8, 2) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-76",
+      "test": "hidden",
+      "assert": "assert is_simple_power(3, 2) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-76",
+      "test": "hidden",
+      "assert": "assert is_simple_power(3, 1) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-76",
+      "test": "hidden",
+      "assert": "assert is_simple_power(5, 3) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-77",
+      "test": "hidden",
+      "assert": "assert iscube(1) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-77",
+      "test": "hidden",
+      "assert": "assert iscube(2) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-77",
+      "test": "hidden",
+      "assert": "assert iscube(-1) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-77",
+      "test": "hidden",
+      "assert": "assert iscube(64) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-77",
+      "test": "hidden",
+      "assert": "assert iscube(180) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-77",
+      "test": "hidden",
+      "assert": "assert iscube(0) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-78",
+      "test": "hidden",
+      "assert": "assert hex_key('AB') == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-78",
+      "test": "hidden",
+      "assert": "assert hex_key('1077E') == 2",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-78",
+      "test": "hidden",
+      "assert": "assert hex_key('ABED1A33') == 4",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-78",
+      "test": "hidden",
+      "assert": "assert hex_key('2020') == 2",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-78",
+      "test": "hidden",
+      "assert": "assert hex_key('123456789ABCDEF0') == 6",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-79",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-79",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-79",
+      "test": "hidden",
+      "assert": "assert decimal_to_binary(32) == 'db100000db'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-79",
+      "test": "hidden",
+      "assert": "assert decimal_to_binary(15) == 'db1111db'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-80",
+      "test": "hidden",
+      "assert": "assert is_happy('a') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-80",
+      "test": "hidden",
+      "assert": "assert is_happy('aa') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-80",
+      "test": "hidden",
+      "assert": "assert is_happy('abcd') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-80",
+      "test": "hidden",
+      "assert": "assert is_happy('aabb') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-80",
+      "test": "hidden",
+      "assert": "assert is_happy('adb') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-80",
+      "test": "hidden",
+      "assert": "assert is_happy('xyy') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-86",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-86",
+      "test": "hidden",
+      "assert": "assert anti_shuffle('Hi') == 'Hi'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-86",
+      "test": "hidden",
+      "assert": "assert anti_shuffle('hello') == 'ehllo'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-86",
+      "test": "hidden",
+      "assert": "assert anti_shuffle('Hello World!!!') == 'Hello !!!Wdlor'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-87",
+      "test": "shown",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-87",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-87",
+      "test": "hidden",
+      "assert": "assert get_row([[1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 1, 6], [1, 2, 3, 4, 5, 1]], 1) == [(0, 0), (1, 4), (1, 0), (2, 5), (2, 0)]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-87",
+      "test": "hidden",
+      "assert": "assert get_row([], 1) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-87",
+      "test": "hidden",
+      "assert": "assert get_row([[], [1], [1, 2, 3]], 3) == [(2, 2)]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-88",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-88",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-88",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-88",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-88",
+      "test": "hidden",
+      "assert": "assert sort_array([]) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-88",
+      "test": "hidden",
+      "assert": "assert sort_array([5]) == [5]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-88",
+      "test": "hidden",
+      "assert": "assert sort_array([2, 4, 3, 0, 1, 5]) == [0, 1, 2, 3, 4, 5]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-88",
+      "test": "hidden",
+      "assert": "assert sort_array([2, 4, 3, 0, 1, 5, 6]) == [6, 5, 4, 3, 2, 1, 0]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-91",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-91",
+      "test": "hidden",
+      "assert": "assert is_bored('Hello world') == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-93",
+      "test": "hidden",
+      "assert": "assert encode('This is a message') == 'tHKS KS C MGSSCGG'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-94",
+      "test": "hidden",
+      "assert": "assert skjkasdkd([0, 3, 2, 1, 3, 5, 7, 4, 5, 5, 5, 2, 181, 32, 4, 32, 3, 2, 32, 324, 4, 3]) == 10",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-94",
+      "test": "hidden",
+      "assert": "assert skjkasdkd([1, 0, 1, 8, 2, 4597, 2, 1, 3, 40, 1, 2, 1, 2, 4, 2, 5, 1]) == 25",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-94",
+      "test": "hidden",
+      "assert": "assert skjkasdkd([1, 3, 1, 32, 5107, 34, 83278, 109, 163, 23, 2323, 32, 30, 1, 9, 3]) == 13",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-94",
+      "test": "hidden",
+      "assert": "assert skjkasdkd([0, 724, 32, 71, 99, 32, 6, 0, 5, 91, 83, 0, 5, 6]) == 11",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-94",
+      "test": "hidden",
+      "assert": "assert skjkasdkd([0, 81, 12, 3, 1, 21]) == 3",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-94",
+      "test": "hidden",
+      "assert": "assert skjkasdkd([0, 8, 1, 2, 1, 7]) == 7",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-96",
+      "test": "hidden",
+      "assert": "assert count_up_to(5) == [2, 3]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-96",
+      "test": "hidden",
+      "assert": "assert count_up_to(0) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-96",
+      "test": "hidden",
+      "assert": "assert count_up_to(1) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-96",
+      "test": "hidden",
+      "assert": "assert count_up_to(18) == [2, 3, 5, 7, 11, 13, 17]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-98",
+      "test": "shown",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-98",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-98",
+      "test": "hidden",
+      "assert": "assert count_upper('aBCdEf') == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-98",
+      "test": "hidden",
+      "assert": "assert count_upper('abcdefg') == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-98",
+      "test": "hidden",
+      "assert": "assert count_upper('dBBE') == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-100",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-100",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-100",
+      "test": "hidden",
+      "assert": "assert make_a_pile(3) == [3, 5, 7]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-101",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-101",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-101",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-101",
+      "test": "hidden",
+      "assert": "assert words_string('Hi, my name is John') == ['Hi', 'my', 'name', 'is', 'John']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-101",
+      "test": "hidden",
+      "assert": "assert words_string('One, two, three, four, five, six') == ['One', 'two', 'three', 'four', 'five', 'six']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-102",
+      "test": "hidden",
+      "assert": "assert choose_num(12, 15) == 14",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-102",
+      "test": "hidden",
+      "assert": "assert choose_num(13, 12) == -1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-103",
+      "test": "hidden",
+      "assert": "assert rounded_avg(1, 5) == '0b11'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-103",
+      "test": "hidden",
+      "assert": "assert rounded_avg(7, 5) == -1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-105",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-105",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-105",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-105",
+      "test": "hidden",
+      "assert": "assert by_length([2, 1, 1, 4, 5, 8, 2, 3]) == ['Eight', 'Five', 'Four', 'Three', 'Two', 'Two', 'One', 'One']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-105",
+      "test": "hidden",
+      "assert": "assert by_length([]) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-105",
+      "test": "hidden",
+      "assert": "assert by_length([1, -1, 55]) == ['One']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-106",
+      "test": "hidden",
+      "assert": "assert f(5) == [1, 2, 6, 24, 15]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-107",
+      "test": "hidden",
+      "assert": "assert even_odd_palindrome(12) == (4, 6)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-107",
+      "test": "hidden",
+      "assert": "assert even_odd_palindrome(3) == (1, 2)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-108",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-108",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-108",
+      "test": "hidden",
+      "assert": "assert count_nums([]) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-109",
+      "test": "hidden",
+      "assert": "assert move_one_ball([3, 4, 5, 1, 2]) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-109",
+      "test": "hidden",
+      "assert": "assert move_one_ball([3, 5, 4, 1, 2]) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-110",
+      "test": "hidden",
+      "assert": "assert exchange([1, 2, 3, 4], [1, 2, 3, 4]) == 'YES'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-110",
+      "test": "hidden",
+      "assert": "assert exchange([1, 2, 3, 4], [1, 5, 3, 4]) == 'NO'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-112",
+      "test": "hidden",
+      "assert": "assert reverse_delete('abcde', 'ae') == ('bcd', False)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-112",
+      "test": "hidden",
+      "assert": "assert reverse_delete('abcdef', 'b') == ('acdef', False)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-112",
+      "test": "hidden",
+      "assert": "assert reverse_delete('abcdedcba', 'ab') == ('cdedc', True)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-114",
+      "test": "hidden",
+      "assert": "assert minSubArraySum([2, 3, 4, 1, 2, 4]) == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-114",
+      "test": "hidden",
+      "assert": "assert minSubArraySum([-1, -2, -3]) == -6",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-115",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-115",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-115",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-115",
+      "test": "hidden",
+      "assert": "assert max_fill([[0, 0, 1, 0], [0, 1, 0, 0], [1, 1, 1, 1]], 1) == 6",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-115",
+      "test": "hidden",
+      "assert": "assert max_fill([[0, 0, 1, 1], [0, 0, 0, 0], [1, 1, 1, 1], [0, 1, 1, 1]], 2) == 5",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-115",
+      "test": "hidden",
+      "assert": "assert max_fill([[0, 0, 0], [0, 0, 0]], 5) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-116",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-116",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-116",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-116",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-116",
+      "test": "hidden",
+      "assert": "assert sort_array([1, 5, 2, 3, 4]) == [1, 2, 4, 3, 5]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-116",
+      "test": "hidden",
+      "assert": "assert sort_array([-2, -3, -4, -5, -6]) == [-4, -2, -6, -5, -3]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-116",
+      "test": "hidden",
+      "assert": "assert sort_array([1, 0, 2, 3, 4]) == [0, 1, 2, 4, 3]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-116",
+      "test": "hidden",
+      "assert": "assert sort_array([2, 4, 8, 16, 32]) == [2, 4, 8, 16, 32]",
+      "reason": "repeats an earlier call"
+    },
+    {
+      "id": "python-117",
+      "test": "hidden",
+      "assert": "assert select_words('Mary had a little lamb', 4) == ['little']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-117",
+      "test": "hidden",
+      "assert": "assert select_words('Mary had a little lamb', 3) == ['Mary', 'lamb']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-117",
+      "test": "hidden",
+      "assert": "assert select_words('simple white space', 2) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-117",
+      "test": "hidden",
+      "assert": "assert select_words('Hello world', 4) == ['world']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-117",
+      "test": "hidden",
+      "assert": "assert select_words('Uncle sam', 3) == ['Uncle']",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-118",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-118",
+      "test": "hidden",
+      "assert": "assert get_closest_vowel('yogurt') == 'u'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-118",
+      "test": "hidden",
+      "assert": "assert get_closest_vowel('ab') == ''",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-118",
+      "test": "hidden",
+      "assert": "assert get_closest_vowel('quick') == ''",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-121",
+      "test": "hidden",
+      "assert": "assert solution([5, 8, 7, 1]) == 12",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-121",
+      "test": "hidden",
+      "assert": "assert solution([3, 3, 3, 3, 3]) == 9",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-121",
+      "test": "hidden",
+      "assert": "assert solution([30, 13, 24, 321]) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-122",
+      "test": "hidden",
+      "assert": "assert add_elements([111, 21, 3, 4000, 5, 6, 7, 8, 9], 4) == 24",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-123",
+      "test": "hidden",
+      "assert": "assert get_odd_collatz(5) == [1, 5]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-126",
+      "test": "hidden",
+      "assert": "assert is_sorted([5]) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-126",
+      "test": "hidden",
+      "assert": "assert is_sorted([1, 2, 3, 4, 5]) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-126",
+      "test": "hidden",
+      "assert": "assert is_sorted([1, 3, 2, 4, 5]) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-126",
+      "test": "hidden",
+      "assert": "assert is_sorted([1, 2, 3, 4, 5, 6]) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-126",
+      "test": "hidden",
+      "assert": "assert is_sorted([1, 2, 3, 4, 5, 6, 7]) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-126",
+      "test": "hidden",
+      "assert": "assert is_sorted([1, 3, 2, 4, 5, 6, 7]) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-126",
+      "test": "hidden",
+      "assert": "assert is_sorted([1, 2, 2, 2, 3, 4]) == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-126",
+      "test": "hidden",
+      "assert": "assert is_sorted([1, 2, 2, 3, 3, 4]) == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-127",
+      "test": "hidden",
+      "assert": "assert intersection((1, 2), (2, 3)) == 'NO'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-127",
+      "test": "hidden",
+      "assert": "assert intersection((-1, 1), (0, 4)) == 'NO'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-127",
+      "test": "hidden",
+      "assert": "assert intersection((-3, -1), (-5, 5)) == 'YES'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-128",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-128",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-128",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-128",
+      "test": "hidden",
+      "assert": "assert prod_signs([1, 2, 2, -4]) == -9",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-128",
+      "test": "hidden",
+      "assert": "assert prod_signs([0, 1]) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-128",
+      "test": "hidden",
+      "assert": "assert prod_signs([]) == None",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-129",
+      "test": "hidden",
+      "assert": "assert minPath([[1, 2, 3], [4, 5, 6], [7, 8, 9]], 3) == [1, 2, 1]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-129",
+      "test": "hidden",
+      "assert": "assert minPath([[5, 9, 3], [4, 1, 6], [7, 8, 2]], 1) == [1]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-130",
+      "test": "hidden",
+      "assert": "assert tri(3) == [1, 3, 2.0, 8.0]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-130",
+      "test": "hidden",
+      "assert": "assert tri(4) == [1, 3, 2.0, 8.0, 3.0]",
+      "reason": "its call appears in the docstring, so the model is shown it"
+    },
+    {
+      "id": "python-130",
+      "test": "hidden",
+      "assert": "assert tri(1) == [1, 3]",
+      "reason": "its call appears in the docstring, so the model is shown it"
+    },
+    {
+      "id": "python-132",
+      "test": "hidden",
+      "assert": "assert is_nested('[[]]') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-132",
+      "test": "hidden",
+      "assert": "assert is_nested('[]]]]]]][[[[[]') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-132",
+      "test": "hidden",
+      "assert": "assert is_nested('[][]') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-132",
+      "test": "hidden",
+      "assert": "assert is_nested('[]') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-132",
+      "test": "hidden",
+      "assert": "assert is_nested('[[]][[') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-132",
+      "test": "hidden",
+      "assert": "assert is_nested('[[][]]') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-133",
+      "test": "hidden",
+      "assert": "assert sum_squares([1, 2, 3]) == 14",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-133",
+      "test": "hidden",
+      "assert": "assert sum_squares([1, 3, 5, 7]) == 84",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-133",
+      "test": "hidden",
+      "assert": "assert sum_squares([1.4, 4.2, 0]) == 29",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-133",
+      "test": "hidden",
+      "assert": "assert sum_squares([-2.4, 1, 1]) == 6",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-134",
+      "test": "shown",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-134",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-134",
+      "test": "hidden",
+      "assert": "assert check_if_last_char_is_a_letter('apple pi e') == True",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-134",
+      "test": "hidden",
+      "assert": "assert check_if_last_char_is_a_letter('') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-134",
+      "test": "hidden",
+      "assert": "assert check_if_last_char_is_a_letter('apple pie') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-134",
+      "test": "hidden",
+      "assert": "assert check_if_last_char_is_a_letter('apple pi e ') == False",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-135",
+      "test": "hidden",
+      "assert": "assert can_arrange([1, 2, 4, 3, 5]) == 3",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-136",
+      "test": "shown",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-136",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-136",
+      "test": "hidden",
+      "assert": "assert largest_smallest_integers([2, 4, 1, 3, 5, 7]) == (None, 1)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-136",
+      "test": "hidden",
+      "assert": "assert largest_smallest_integers([]) == (None, None)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-136",
+      "test": "hidden",
+      "assert": "assert largest_smallest_integers([0]) == (None, None)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-139",
+      "test": "hidden",
+      "assert": "assert special_factorial(4) == 288",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-142",
+      "test": "hidden",
+      "assert": "assert sum_squares([1, 2, 3]) == 6",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-142",
+      "test": "hidden",
+      "assert": "assert sum_squares([]) == 0",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-142",
+      "test": "hidden",
+      "assert": "assert sum_squares([-1, -5, 2, -1, -5]) == -126",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-143",
+      "test": "hidden",
+      "assert": "assert words_in_sentence('This is a test') == 'is'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-143",
+      "test": "hidden",
+      "assert": "assert words_in_sentence('lets go for swimming') == 'go for'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-145",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-145",
+      "test": "hidden",
+      "assert": "assert order_by_points([1, 11, -1, -11, -12]) == [-1, -11, 1, -12, 11]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-145",
+      "test": "hidden",
+      "assert": "assert order_by_points([]) == []",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-146",
+      "test": "hidden",
+      "assert": "assert specialFilter([15, -73, 14, -15]) == 1",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-146",
+      "test": "hidden",
+      "assert": "assert specialFilter([33, -2, -3, 45, 21, 109]) == 2",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-148",
+      "test": "hidden",
+      "assert": "assert bf('Jupiter', 'Neptune') == ('Saturn', 'Uranus')",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-148",
+      "test": "hidden",
+      "assert": "assert bf('Earth', 'Mercury') == ('Venus',)",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-148",
+      "test": "hidden",
+      "assert": "assert bf('Mercury', 'Uranus') == ('Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn')",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-150",
+      "test": "hidden",
+      "assert": "assert x_or_y(7, 34, 12) == 34",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-150",
+      "test": "hidden",
+      "assert": "assert x_or_y(15, 8, 5) == 5",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-151",
+      "test": "hidden",
+      "assert": "assert double_the_difference(lst) == odd_sum, 'This prints if this assert fails 7 (good for debugging!)'",
+      "reason": "non-literal argument"
+    },
+    {
+      "id": "python-152",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-152",
+      "test": "hidden",
+      "assert": "assert compare([1, 2, 3, 4, 5, 1], [1, 2, 3, 4, 2, -2]) == [0, 0, 0, 0, 3, 3]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-152",
+      "test": "hidden",
+      "assert": "assert compare([0, 5, 0, 0, 0, 4], [4, 1, 1, 0, 0, -2]) == [4, 4, 1, 0, 0, 6]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-152",
+      "test": "hidden",
+      "assert": "assert compare([1, 2, 3, 4, 5, 1], [1, 2, 3, 4, 2, -2]) == [0, 0, 0, 0, 3, 3]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-155",
+      "test": "shown",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-155",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-156",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-156",
+      "test": "hidden",
+      "assert": "assert int_to_mini_roman(19) == 'xix'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-156",
+      "test": "hidden",
+      "assert": "assert int_to_mini_roman(152) == 'clii'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-156",
+      "test": "hidden",
+      "assert": "assert int_to_mini_roman(426) == 'cdxxvi'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-158",
+      "test": "hidden",
+      "assert": "assert find_max(['name', 'of', 'string']) == 'string'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-158",
+      "test": "hidden",
+      "assert": "assert find_max(['name', 'enam', 'game']) == 'enam'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-158",
+      "test": "hidden",
+      "assert": "assert find_max(['aaaaaaa', 'bb', 'cc']) == 'aaaaaaa'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-159",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-159",
+      "test": "shown",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-159",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 1 (good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-159",
+      "test": "hidden",
+      "assert": "assert True, 'This prints if this assert fails 2 (also good for debugging!)'",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-159",
+      "test": "hidden",
+      "assert": "assert eat(5, 6, 10) == [11, 4]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-159",
+      "test": "hidden",
+      "assert": "assert eat(4, 8, 9) == [12, 1]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-159",
+      "test": "hidden",
+      "assert": "assert eat(1, 10, 10) == [11, 0]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-159",
+      "test": "hidden",
+      "assert": "assert eat(2, 11, 5) == [7, 0]",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-161",
+      "test": "hidden",
+      "assert": "assert solve('1234') == '4321'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-161",
+      "test": "hidden",
+      "assert": "assert solve('ab') == 'AB'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-161",
+      "test": "hidden",
+      "assert": "assert solve('#a@C') == '#A@c'",
+      "reason": "its call is a shown test"
+    },
+    {
+      "id": "python-162",
+      "test": "shown",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-162",
+      "test": "hidden",
+      "assert": "assert True",
+      "reason": "trivial assert (a constant)"
+    },
+    {
+      "id": "python-162",
+      "test": "hidden",
+      "assert": "assert string_to_md5('Hello world') == '3e25960a79dbc69b674cd4ec67a72c62'",
+      "reason": "its call is a shown test"
+    }
+  ]
+}

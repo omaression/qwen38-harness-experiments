@@ -1,0 +1,8 @@
+{
+  "schema": "llm_eval_harness.suite/1",
+  "name": "humanevalfix",
+  "version": 1,
+  "heldout_pct": 60,
+  "synthetic": false,
+  "description": "Derived from HumanEvalFix, the Python subset of the bigcode/humanevalpack dataset (MIT license; revision 9a41762f73a8, see NOTICE). Not synthetic: the functions, docstrings, human-written bugs and tests are the dataset's, converted by scripts/import_humanevalfix.py. buggy_code is the buggy solution with its signature and docstring, reference_code the canonical solution, shown_tests the dataset's example asserts, hidden_tests its full-test asserts that compare a call with a literal. wrong_code is the buggy solution behind a guard that returns the shown tests' expected values: an overfitted patch that keeps the dataset's bug. Tasks or asserts the format cannot express exactly are left out (IMPORT.json lists each with its reason). HumanEval is public and widely trained on, so held-out here means held out from prompt tuning, not unseen by a model."
+}

@@ -1,0 +1,78 @@
+tasks/humanevalfix is derived from third-party data
+====================================================
+
+The tasks in this directory (tasks.jsonl) are converted from HumanEvalFix, the Python subset of
+the HumanEvalPack dataset, by scripts/import_humanevalfix.py. The functions, docstrings, canonical
+solutions, human-written bugs and test values are the dataset's. The conversion, the guards in
+wrong_code, the task ids in the form python-<n>, the tags as slugs, the groups and the selection of
+tasks and tests are this repository's.
+
+Source
+  Dataset:   bigcode/humanevalpack on the Hugging Face hub, configuration "python", split "test"
+  Revision:  9a41762f73a8cb23bb5811b73d5aab164efcf378
+  File:      python/test-00000-of-00001.parquet
+  sha256:    ed5f15d789156e21222bfcd556c425a39042355c84ae1e8b058abd6a3d7f8075
+  License:   MIT (declared in the dataset card)
+
+HumanEvalPack extends OpenAI's HumanEval. Its Python split keeps HumanEval's Python problems,
+canonical solutions and tests, and adds a human-written bug per problem (HumanEvalFix).
+
+Please cite both works when you use this suite:
+
+  N. Muennighoff, Q. Liu, A. Zebaze, Q. Zheng, B. Hui, T. Y. Zhuo, S. Singh, X. Tang,
+  L. von Werra and S. Longpre, "OctoPack: Instruction Tuning Code Large Language Models,"
+  arXiv:2308.07124, 2023.
+
+  M. Chen et al., "Evaluating Large Language Models Trained on Code," arXiv:2107.03374, 2021.
+
+
+License of HumanEvalPack / OctoPack (https://github.com/bigcode-project/octopack)
+--------------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2023 Muennighoff
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+License of HumanEval (https://github.com/openai/human-eval)
+-----------------------------------------------------------
+
+The MIT License
+
+Copyright (c) OpenAI (https://openai.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

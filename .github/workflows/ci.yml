@@ -59,6 +59,8 @@ jobs:
         run: python -m pytest -q
       - name: Validate the task suite
         run: llm-eval tasks validate --suite tasks/demo
+      - name: Validate the HumanEvalFix suite
+        run: llm-eval tasks validate --suite tasks/humanevalfix
       - name: Verify the ledger
         run: llm-eval ledger verify
 

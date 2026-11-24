@@ -173,12 +173,13 @@ stays distinguishable from "the gate could not run".
 
 ## CI regression testing
 
-`.github/workflows/ci.yml` has read-only permissions and four jobs:
+`.github/workflows/ci.yml` has read-only permissions and five jobs:
 
 | Job | When | What it does |
 |---|---|---|
 | `tests` | every push to `main`, every pull request | On Python 3.10, 3.11 and 3.12: `pytest`, `llm-eval tasks validate`, `llm-eval ledger verify` |
 | `regression-gate` | after `tests` | Replays the cassettes (no secrets, no model calls). Gates `cassettes/candidate` and `cassettes/candidate-regressed` against the current baseline for both features, writes the job summary, uploads the reports, then enforces the verdicts |
+| `experiments` | after `tests` | Replays every experiment's recorded real-model cassettes and fails when the current harness does not reproduce its committed reports in `experiments/*/expected/` byte for byte |
 | `live-config` | manual dispatch only | Checks whether repository secrets configure a live endpoint; if not, the live job is skipped with a notice |
 | `live-eval` | manual dispatch, when configured | Records the candidate and the baseline from a live endpoint, gates them, writes the summary and uploads everything |
 
@@ -303,6 +304,15 @@ be able to download them.
 - `experiments/exp-a-qwen38/`: Qwen3.8-27B with LoRA adapters, served by vLLM. It compares an identity (no-op) adapter for `bugfix` and a trained judge adapter for `judge` against the base model.
 - The no-op adapter is rejected on one noisy item (McNemar p = 1.0). The trained judge gains 15 points on the dev split but cannot show it on a held-out split where the base model is already perfect.
 - The CI job `experiments` replays every experiment and fails when the current harness no longer reproduces its committed reports byte for byte.
+
+## Writing the report
+
+The class deliverable is an IEEE-format project report on the harness and its experiments.
+
+- [docs/report/](docs/report/README.md) holds its text, one markdown file per section (abstract, I. Introduction to VII. Conclusion, references). Its README maps each section to the files and reports its claims rest on.
+- [docs/paper/](docs/paper/) holds the same text as an IEEEtran conference paper (`main.tex`), with its bibliography (`refs.bib`) and generated tables (`tables/`). Build it from that directory with `pdflatex main && bibtex main && pdflatex main && pdflatex main`. It needs the IEEEtran class (`kpsewhich IEEEtran.cls`; see [docs/report/README.md](docs/report/README.md)).
+- The result tables are generated from the committed reports by `python scripts/make_report_tables.py`, which writes `docs/report/tables.md`, `docs/paper/tables/*.tex` and the marked blocks of the results section. `tests/test_report_tables.py` fails when a table no longer matches the reports, so rerun the script after a report changes.
+- Experiment C (Ternary Bonsai 2 against bf16 Qwen3.8-27B on HumanEvalFix) is not recorded yet. Its tables are marked placeholders that the script fills once `experiments/exp-c-*/expected/` exists.
 
 ## How to read a report
 
@@ -479,9 +489,13 @@ cassettes/baseline/             synthetic recordings: the current baseline (prom
 cassettes/candidate/            synthetic recordings: a candidate that should promote (prompts v2)
 cassettes/candidate-regressed/  synthetic recordings: a candidate the gate must reject
 ledger/ledger.jsonl             the committed, hash-chained ledger of baselines
+experiments/                    recorded real-model cassettes and their expected gate reports, one directory per experiment
 scripts/make_demo_cassettes.py  how the synthetic cassettes are made (rules documented inside)
-.github/workflows/ci.yml        tests, the regression gate and its self-test, the live job
+scripts/make_report_tables.py   the report's result tables, generated from experiments/*/expected/*.json
+.github/workflows/ci.yml        tests, the regression gate and its self-test, the experiments replay, the live job
 docs/DESIGN.md                  architecture, metric definitions, the gate rule, CI
+docs/report/                    the IEEE-format project report, one markdown file per section
+docs/paper/                     the same report as an IEEEtran LaTeX paper, with its bibliography and tables
 ```
 
 ## Origin
