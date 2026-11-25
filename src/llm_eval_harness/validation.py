@@ -31,6 +31,10 @@ The report (ValidationReport.to_json, printed by the CLI):
 
 from __future__ import annotations
 
+import ast
+import difflib
+import re
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -82,16 +86,17 @@ class ValidationReport:
 def validate_suite(suite: Suite, *, execute: bool = True, timeout_s: float = DEFAULT_TIMEOUT_S) -> ValidationReport:
     """Run the checks above. Never raises for a bad task: every finding is a problem."""
     counts = tasks.split_counts(suite)
+    should_execute = execute and suite.kind == "function"
     report = ValidationReport(
         suite=suite.name,
         sha256=suite.sha256,
         tasks=len(suite.tasks),
         splits={DEV: counts[DEV], HELDOUT: counts[HELDOUT]},
-        executed=execute,
+        executed=should_execute,
     )
     report.problems += _guarded("structure check", lambda: tasks.check_structure(suite))
     ordered = sorted(suite.tasks, key=lambda t: t.id)
-    if execute:
+    if should_execute:
         # A task whose structure is broken is not run: its results would only restate that.
         runnable = []
         for task in ordered:
@@ -101,7 +106,7 @@ def validate_suite(suite: Suite, *, execute: bool = True, timeout_s: float = DEF
                 runnable.append(task)
         report.problems += _execution_problems(runnable, timeout_s)
     for task in ordered:
-        report.problems += _sast_problems(task)
+        report.problems += _sast_problems(task, suite.kind)
     report.problems += _leakage_problems(suite)
     twin_problems, twin_warnings = _twins(suite)
     report.problems += twin_problems
@@ -186,8 +191,49 @@ def _execution_problems(runnable: list[Task], timeout_s: float) -> list[str]:
     return problems
 
 
-def _sast_problems(task: Task) -> list[str]:
+_REVIEW_LEAK = re.compile(
+    r'"(?:passed|expected_passed|gold_passed)"\s*:\s*(?:true|false)|"gold"\s*:\s*\{[^}]*"passed"\s*:',
+    re.I,
+)
+
+
+def _can_parse_py(code: str) -> tuple[bool, str]:
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", SyntaxWarning)
+            ast.parse(code)
+        return True, ""
+    except (SyntaxError, ValueError, RecursionError) as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def _sast_problems(task: Task, kind: str = "function") -> list[str]:
+    if kind == "review":
+        return []
     problems = []
+    if kind == "patch":
+        for path, new_text in sorted(task.gold_files.items()):
+            if new_text is None or not path.endswith((".py", ".pyi")):
+                continue
+            orig_text = task.files.get(path)
+            if new_text == orig_text:
+                continue
+            if orig_text is None or _can_parse_py(orig_text)[0]:
+                ok, err = _can_parse_py(new_text)
+                if not ok:
+                    problems.append(f"{task.id}: gold_files[{path!r}] does not parse ({err})")
+            try:
+                found = sast.blocking(sast.added_findings(orig_text or "", new_text))
+            except Exception as exc:  # noqa: BLE001
+                problems.append(f"{task.id}: gold_files[{path!r}] could not be scanned: {type(exc).__name__}: {exc}")
+                continue
+            if found:
+                rules = ", ".join(sorted({f.rule for f in found}))
+                problems.append(
+                    f"{task.id}: gold_files[{path!r}] trips block-class SAST rule(s) {rules}; "
+                    "a rule that fires on a task's own code would make the gate refuse correct answers"
+                )
+        return problems
     for name, code in (("buggy_code", task.buggy_code), ("reference_code", task.reference_code), ("wrong_code", task.wrong_code)):
         try:
             found = sast.blocking(sast.scan(code))
@@ -198,6 +244,34 @@ def _sast_problems(task: Task) -> list[str]:
             rules = ", ".join(sorted({f.rule for f in found}))
             problems.append(f"{task.id}: {name} trips block-class SAST rule(s) {rules}; a rule that fires on a task's own code would make the gate refuse correct answers")
     return problems
+
+
+def _patch_gold_leaks(task: Task) -> list[str]:
+    leaked: list[str] = []
+    prompt = task.user_prompt
+    for path, new_text in sorted(task.gold_files.items()):
+        if new_text is None:
+            continue
+        orig_text = task.files.get(path)
+        if new_text == orig_text:
+            continue
+        if orig_text is not None and new_text.strip() == orig_text.strip():
+            continue
+        stripped = new_text.strip()
+        if stripped and len(stripped) >= 20 and stripped in prompt and (orig_text is None or stripped not in orig_text):
+            leaked.append(path)
+            continue
+        orig_lines = (orig_text or "").splitlines()
+        new_lines = new_text.splitlines()
+        sm = difflib.SequenceMatcher(None, orig_lines, new_lines, autojunk=False)
+        for tag, _i1, _i2, j1, j2 in sm.get_opcodes():
+            if tag not in ("replace", "insert"):
+                continue
+            block = "\n".join(new_lines[j1:j2]).strip()
+            if j2 - j1 >= 2 and len(block) >= 20 and block in prompt and block not in (orig_text or ""):
+                leaked.append(path)
+                break
+    return leaked
 
 
 def _leakage_problems(suite: Suite) -> list[str]:
@@ -218,40 +292,51 @@ def _leakage_problems(suite: Suite) -> list[str]:
             except Exception as exc:  # noqa: BLE001
                 leaks.setdefault((task.id, f"a prompt that does not render ({type(exc).__name__}: {exc})"), set()).add(template.id)
                 continue
-            for check in task.hidden_tests:
-                call = check.call.strip()
-                if call and call in text:
-                    leaks.setdefault((task.id, f"the hidden test call {call!r}"), set()).add(template.id)
-            if template.feature == "bugfix":
-                hidden_code = (("reference code", task.reference_code), ("wrong code", task.wrong_code))
-            else:
-                hidden_code = (("wrong code", task.wrong_code),) if item.variant == "reference" else (("reference code", task.reference_code),)
-            for what, code in hidden_code:
-                if code.strip() and code.strip() in text:
-                    leaks.setdefault((task.id, f"the task's {what}"), set()).add(template.id)
+            if suite.kind == "function":
+                for check in task.hidden_tests:
+                    call = check.call.strip()
+                    if call and call in text:
+                        leaks.setdefault((task.id, f"the hidden test call {call!r}"), set()).add(template.id)
+                if template.feature in ("bugfix", "patch"):
+                    hidden_code = (("reference code", task.reference_code), ("wrong code", task.wrong_code))
+                else:
+                    hidden_code = (("wrong code", task.wrong_code),) if item.variant == "reference" else (("reference code", task.reference_code),)
+                for what, code in hidden_code:
+                    if code.strip() and code.strip() in text:
+                        leaks.setdefault((task.id, f"the task's {what}"), set()).add(template.id)
+            elif suite.kind == "review":
+                if _REVIEW_LEAK.search(task.user_prompt):
+                    leaks.setdefault((task.id, "an injected gold label literal"), set()).add(template.id)
+            elif suite.kind == "patch":
+                for path in _patch_gold_leaks(task):
+                    leaks.setdefault((task.id, f"changed gold_files text for {path!r}"), set()).add(template.id)
     for (task_id, what), template_ids in sorted(leaks.items()):
         problems.append(f"{task_id}: {what} appears in the prompts of {', '.join(sorted(template_ids))}")
     return problems
 
 
 def _twins(suite: Suite) -> tuple[list[str], list[str]]:
-    """Identical normalised buggy code across the split is a problem; near twins are warnings."""
+    """Identical normalised code/prompt across the split is a problem; near twins are warnings."""
     problems: list[str] = []
-    by_code: dict[tuple[str, ...], list[Task]] = {}
+    by_key: dict[tuple[str, ...], list[Task]] = {}
     for task in suite.tasks:
         try:
-            key = tuple(tasks.normalize_code(task.buggy_code))
+            if suite.kind == "function":
+                key = tuple(tasks.normalize_code(task.buggy_code))
+            else:
+                key = tuple(task.user_prompt.split())
         except Exception:  # noqa: BLE001 - check_structure reports code that does not parse
             continue
-        by_code.setdefault(key, []).append(task)
+        by_key.setdefault(key, []).append(task)
     identical: set[tuple[str, str]] = set()
-    for group in by_code.values():
+    what = "normalised buggy code" if suite.kind == "function" else "normalised user_prompt"
+    for group in by_key.values():
         dev = sorted(t.id for t in group if tasks.split_of(t, suite.heldout_pct) == DEV)
         held = sorted(t.id for t in group if tasks.split_of(t, suite.heldout_pct) == HELDOUT)
         if dev and held:
             identical.update((d, h) for d in dev for h in held)
             problems.append(
-                f"tasks {', '.join(dev)} (dev) and {', '.join(held)} (heldout) have identical normalised buggy code: "
+                f"tasks {', '.join(dev)} (dev) and {', '.join(held)} (heldout) have identical {what}: "
                 "twins on both sides of the split leak the held-out answer; give them one group"
             )
     warnings: list[str] = []

@@ -318,8 +318,14 @@ def gate_run(
     decision = gate_mod.decide(candidate, baseline, comparison, config)
     split_sha256 = tasks.split_sha256(suite, split)
     openings = None
-    if split == HELDOUT and ledger is not None and Path(ledger.path).is_file():
-        openings = ledger.heldout_openings(split_sha256)
+    if split == HELDOUT and ledger is not None:
+        has_ledger = Path(ledger.path).is_file()
+        if record_evaluation:
+            prior = ledger.heldout_openings(split_sha256) if has_ledger else 0
+            already = has_ledger and ledger.has_candidate_opening(split_sha256, candidate.fingerprint)
+            openings = prior + (0 if already else 1)
+        elif has_ledger:
+            openings = ledger.heldout_openings(split_sha256)
     warnings = gate_mod.report_warnings(
         candidate, baseline, comparison, config, current_prompt=prompts.CURRENT.get(feature), heldout_openings=openings
     )

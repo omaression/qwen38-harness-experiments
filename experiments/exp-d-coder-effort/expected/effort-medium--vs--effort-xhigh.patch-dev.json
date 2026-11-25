@@ -1,0 +1,511 @@
+{
+  "baseline": {
+    "fingerprint": "f50cc47e9d9ed93bdc1446e19ca8e867ba95bdc8668adf60235df4e29aa84b5b",
+    "metrics": {
+      "applied_rate": 0.328125,
+      "by_tag": {
+        "aio-libs-yarl": {
+          "items": 1,
+          "usable": 0
+        },
+        "aspp-pelita": {
+          "items": 1,
+          "usable": 1
+        },
+        "dalibo-pgtoolkit": {
+          "items": 1,
+          "usable": 1
+        },
+        "dcc-lab-raytracing": {
+          "items": 2,
+          "usable": 2
+        },
+        "districtdatalabs-yellowbrick": {
+          "items": 6,
+          "usable": 3
+        },
+        "dpkp-kafka-python": {
+          "items": 3,
+          "usable": 2
+        },
+        "dynaconf-dynaconf": {
+          "items": 8,
+          "usable": 1
+        },
+        "educationaltestingservice-skll": {
+          "items": 1,
+          "usable": 0
+        },
+        "enowars-enochecker": {
+          "items": 2,
+          "usable": 2
+        },
+        "h2non-pook": {
+          "items": 2,
+          "usable": 1
+        },
+        "jazzband-django-debug-toolbar": {
+          "items": 2,
+          "usable": 0
+        },
+        "jupyterhub-jupyterhub": {
+          "items": 16,
+          "usable": 1
+        },
+        "kubeflow-pipelines": {
+          "items": 14,
+          "usable": 2
+        },
+        "l-johnston-nitdms": {
+          "items": 1,
+          "usable": 1
+        },
+        "lightning-universe-lightning-flash": {
+          "items": 10,
+          "usable": 6
+        },
+        "lmfdb-lmfdb": {
+          "items": 7,
+          "usable": 1
+        },
+        "microsoft-debugpy": {
+          "items": 7,
+          "usable": 3
+        },
+        "mitmproxy-pdoc": {
+          "items": 1,
+          "usable": 0
+        },
+        "model-bakers-model-bakery": {
+          "items": 4,
+          "usable": 0
+        },
+        "ohsu-comp-bio-py-tes": {
+          "items": 1,
+          "usable": 0
+        },
+        "probabl-ai-skore": {
+          "items": 1,
+          "usable": 1
+        },
+        "pybel-pybel": {
+          "items": 2,
+          "usable": 1
+        },
+        "qutech-qupulse": {
+          "items": 5,
+          "usable": 2
+        },
+        "ros-ros-comm": {
+          "items": 5,
+          "usable": 1
+        },
+        "scipp-scippnexus": {
+          "items": 4,
+          "usable": 0
+        },
+        "scverse-scanpy": {
+          "items": 9,
+          "usable": 5
+        },
+        "snowplow-snowplow-python-tracker": {
+          "items": 2,
+          "usable": 1
+        },
+        "sonic-net-sonic-utilities": {
+          "items": 4,
+          "usable": 1
+        },
+        "stackstorm-st2": {
+          "items": 5,
+          "usable": 2
+        },
+        "weni-ai-bothub-engine": {
+          "items": 1,
+          "usable": 1
+        }
+      },
+      "completion_tokens_mean": 25246.164062,
+      "completion_tokens_total": 3231509,
+      "finish_reasons": {
+        "length": 57,
+        "stop": 71
+      },
+      "gold_match_rate": 0.0,
+      "items": 128,
+      "latency_median_s": 517.2805,
+      "lenient_only_rate": 0.0,
+      "noop_rate": 0.0,
+      "primary": 0.328125,
+      "primary_metric": "usable_rate",
+      "sast": {
+        "block": {},
+        "flag": {}
+      },
+      "schema_validity": 0.351562,
+      "schema_validity_ci95": [
+        0.274273,
+        0.437502
+      ],
+      "think_validity": 0.0,
+      "usable": 42,
+      "usable_rate": 0.328125,
+      "usable_rate_ci95": [
+        0.25283,
+        0.413436
+      ]
+    },
+    "model": "qwen38",
+    "name": "effort-xhigh",
+    "notes": [],
+    "prompt": "patch/v1",
+    "prompt_sha256": "98962798e5f54c42700ee2546582d54ea9f79da4b9ae6865d95db4da4a241ff9",
+    "recorded_suite_sha256": "22a758623f529c8f21f142a9c76f88252a931289130412042d3f91c9c039fea8",
+    "source": "experiments/exp-d-coder-effort/effort-xhigh",
+    "synthetic": false
+  },
+  "candidate": {
+    "fingerprint": "c16e6b4447a1bb0b9b72ec9a066b5521570d07b5d9f03c569c86e1e25a4a794d",
+    "metrics": {
+      "applied_rate": 0.859375,
+      "by_tag": {
+        "aio-libs-yarl": {
+          "items": 1,
+          "usable": 1
+        },
+        "aspp-pelita": {
+          "items": 1,
+          "usable": 1
+        },
+        "dalibo-pgtoolkit": {
+          "items": 1,
+          "usable": 1
+        },
+        "dcc-lab-raytracing": {
+          "items": 2,
+          "usable": 2
+        },
+        "districtdatalabs-yellowbrick": {
+          "items": 6,
+          "usable": 6
+        },
+        "dpkp-kafka-python": {
+          "items": 3,
+          "usable": 3
+        },
+        "dynaconf-dynaconf": {
+          "items": 8,
+          "usable": 8
+        },
+        "educationaltestingservice-skll": {
+          "items": 1,
+          "usable": 0
+        },
+        "enowars-enochecker": {
+          "items": 2,
+          "usable": 2
+        },
+        "h2non-pook": {
+          "items": 2,
+          "usable": 2
+        },
+        "jazzband-django-debug-toolbar": {
+          "items": 2,
+          "usable": 1
+        },
+        "jupyterhub-jupyterhub": {
+          "items": 16,
+          "usable": 14
+        },
+        "kubeflow-pipelines": {
+          "items": 14,
+          "usable": 10
+        },
+        "l-johnston-nitdms": {
+          "items": 1,
+          "usable": 1
+        },
+        "lightning-universe-lightning-flash": {
+          "items": 10,
+          "usable": 9
+        },
+        "lmfdb-lmfdb": {
+          "items": 7,
+          "usable": 5
+        },
+        "microsoft-debugpy": {
+          "items": 7,
+          "usable": 6
+        },
+        "mitmproxy-pdoc": {
+          "items": 1,
+          "usable": 1
+        },
+        "model-bakers-model-bakery": {
+          "items": 4,
+          "usable": 3
+        },
+        "ohsu-comp-bio-py-tes": {
+          "items": 1,
+          "usable": 0
+        },
+        "probabl-ai-skore": {
+          "items": 1,
+          "usable": 1
+        },
+        "pybel-pybel": {
+          "items": 2,
+          "usable": 2
+        },
+        "qutech-qupulse": {
+          "items": 5,
+          "usable": 4
+        },
+        "ros-ros-comm": {
+          "items": 5,
+          "usable": 4
+        },
+        "scipp-scippnexus": {
+          "items": 4,
+          "usable": 4
+        },
+        "scverse-scanpy": {
+          "items": 9,
+          "usable": 9
+        },
+        "snowplow-snowplow-python-tracker": {
+          "items": 2,
+          "usable": 1
+        },
+        "sonic-net-sonic-utilities": {
+          "items": 4,
+          "usable": 4
+        },
+        "stackstorm-st2": {
+          "items": 5,
+          "usable": 3
+        },
+        "weni-ai-bothub-engine": {
+          "items": 1,
+          "usable": 1
+        }
+      },
+      "completion_tokens_mean": 5310.164062,
+      "completion_tokens_total": 679701,
+      "finish_reasons": {
+        "stop": 128
+      },
+      "gold_match_rate": 0.007812,
+      "items": 128,
+      "latency_median_s": 76.716,
+      "lenient_only_rate": 0.0,
+      "noop_rate": 0.0,
+      "primary": 0.851562,
+      "primary_metric": "usable_rate",
+      "sast": {
+        "block": {},
+        "flag": {
+          "exit-call": 1
+        }
+      },
+      "schema_validity": 0.953125,
+      "schema_validity_ci95": [
+        0.901502,
+        0.978342
+      ],
+      "think_validity": 0.453125,
+      "usable": 109,
+      "usable_rate": 0.851562,
+      "usable_rate_ci95": [
+        0.779773,
+        0.902865
+      ]
+    },
+    "model": "qwen38",
+    "name": "effort-medium",
+    "notes": [],
+    "prompt": "patch/v1",
+    "prompt_sha256": "98962798e5f54c42700ee2546582d54ea9f79da4b9ae6865d95db4da4a241ff9",
+    "recorded_suite_sha256": "22a758623f529c8f21f142a9c76f88252a931289130412042d3f91c9c039fea8",
+    "source": "experiments/exp-d-coder-effort/effort-medium",
+    "synthetic": false
+  },
+  "comparison": {
+    "alpha": 0.05,
+    "baseline": 0.328125,
+    "candidate": 0.851562,
+    "ci95": [
+      0.405405,
+      0.628936
+    ],
+    "clusters": 30,
+    "delta": 0.523438,
+    "feature": "patch",
+    "gains": 69,
+    "losses": 2,
+    "mcnemar_p": 2.165863246129246e-18,
+    "mde80": 0.157631,
+    "metric": "usable_rate",
+    "min_significant_losses": 6,
+    "n": 128,
+    "resamples": 2000,
+    "se": 0.056265,
+    "seed": 0,
+    "unpaired": []
+  },
+  "config": {
+    "alpha": 0.05,
+    "floor": null,
+    "margin": 0.0,
+    "max_new_sast": 0,
+    "require_gain": false,
+    "schema_min": 0.95,
+    "think_min": 0.9,
+    "tie": "pass"
+  },
+  "feature": "patch",
+  "gates": [
+    {
+      "bound": 0.95,
+      "enforced": true,
+      "gate": "schema_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 0.953125
+    },
+    {
+      "bound": 0.9,
+      "enforced": true,
+      "gate": "think_validity",
+      "op": ">=",
+      "passed": false,
+      "value": 0.453125
+    },
+    {
+      "against": "baseline",
+      "applicable": true,
+      "bound": 0,
+      "enforced": true,
+      "gate": "new_sast_violations",
+      "op": "<=",
+      "passed": true,
+      "value": 0,
+      "violations": []
+    },
+    {
+      "at_bound": false,
+      "baseline": 0.328125,
+      "bound": 0.0,
+      "bound_source": "baseline",
+      "candidate": 0.851562,
+      "compares": "delta = candidate - baseline",
+      "enforced": true,
+      "gate": "primary",
+      "margin": 0.0,
+      "metric": "usable_rate",
+      "op": ">=",
+      "passed": true,
+      "tie": "pass",
+      "value": 0.523438
+    },
+    {
+      "applicable": true,
+      "bound": 0.05,
+      "condition": "losses > gains and mcnemar_p < alpha",
+      "enforced": true,
+      "gains": 69,
+      "gate": "regression_test",
+      "losses": 2,
+      "op": "not",
+      "passed": true,
+      "test": "exact two-sided McNemar on the discordant items",
+      "value": 2.165863246129246e-18
+    }
+  ],
+  "gates_passed": false,
+  "promote": false,
+  "provenance": {
+    "exec_rule": "values/1",
+    "harness_version": "0.1.0",
+    "prompt_current": "patch/v1",
+    "sast": {
+      "fingerprint": "c8d57f61ce8532471b51e5ebe3be7de606ffd1d67c7bac195cc72be33e39b960",
+      "rules": [
+        {
+          "cwe": "CWE-95",
+          "id": "eval-exec",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "os-command",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "shell-true",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-502",
+          "id": "unsafe-deserialization",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "process-control",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "interpreter-tamper",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "subprocess",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-470",
+          "id": "dynamic-import",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-73",
+          "id": "file-write",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "network",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "introspection",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "exit-call",
+          "severity": "flag"
+        }
+      ],
+      "ruleset": "sast/1"
+    }
+  },
+  "rule": "noninferior/1",
+  "schema": "llm_eval_harness.report/1",
+  "split": "dev",
+  "suite": {
+    "heldout_pct": 50,
+    "items": 128,
+    "name": "swe_coder_effort",
+    "sha256": "22a758623f529c8f21f142a9c76f88252a931289130412042d3f91c9c039fea8",
+    "split_sha256": "ad0aebdcd2f5d78fcb41888a0cf730158d3db694563ab5536619133613f31f1d",
+    "synthetic": false,
+    "tasks": 128
+  },
+  "warnings": []
+}

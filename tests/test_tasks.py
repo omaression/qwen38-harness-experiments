@@ -543,3 +543,83 @@ def test_twins_are_sorted_by_similarity() -> None:
 
 def test_the_tiny_suite_has_no_twins(tiny_tasks: list[Task]) -> None:
     assert tasks.find_twins(suite_of(tiny_tasks)) == []
+
+
+def test_gzipped_suite_round_trip_and_errors(tmp_path: Path) -> None:
+    import gzip
+
+    plain_dir = write_suite(tmp_path / "plain", TINY_TASKS)
+    plain = tasks.load_suite(plain_dir)
+
+    gz_dir = tmp_path / "gz"
+    gz_dir.mkdir()
+    (gz_dir / "suite.json").write_bytes((plain_dir / "suite.json").read_bytes())
+    (gz_dir / "tasks.jsonl.gz").write_bytes(gzip.compress((plain_dir / "tasks.jsonl").read_bytes(), mtime=0))
+    gz_suite = tasks.load_suite(gz_dir)
+    assert gz_suite.sha256 == plain.sha256 and gz_suite.tasks == plain.tasks
+
+    # Both tasks.jsonl and tasks.jsonl.gz together must be refused.
+    (gz_dir / "tasks.jsonl").write_bytes((plain_dir / "tasks.jsonl").read_bytes())
+    with pytest.raises(tasks.SuiteError, match="both"):
+        tasks.load_suite(gz_dir)
+    (gz_dir / "tasks.jsonl").unlink()
+
+    (gz_dir / "tasks.jsonl.gz").write_bytes(b"corrupt")
+    with pytest.raises(tasks.SuiteError, match="not valid gzip"):
+        tasks.load_suite(gz_dir)
+
+    (gz_dir / "tasks.jsonl.gz").write_bytes(gzip.compress(b"\xff\xfe"))
+    with pytest.raises(tasks.SuiteError, match="not UTF-8"):
+        tasks.load_suite(gz_dir)
+
+
+def test_review_and_patch_suites_structure_and_twins(tmp_path: Path) -> None:
+    held, dev = ids_on_both_sides()
+    rev_dir = write_suite(
+        tmp_path / "rev",
+        [
+            {"id": held, "user_prompt": "Review fix for auth token check.", "label": True, "patch_files": ["auth.py"]},
+            {"id": dev, "user_prompt": "Review fix for auth token check!", "label": False, "patch_files": ["auth.py"]},
+        ],
+        kind="review",
+    )
+    rev = tasks.load_suite(rev_dir)
+    assert rev.kind == "review" and tasks.check_structure(rev) == []
+    assert rev.tasks[0].to_json()["label"] is True
+    assert len(tasks.find_twins(rev, threshold=0.8)) == 1
+
+    # Non-boolean label refused
+    bad_rev = write_suite(tmp_path / "bad-rev", [{"id": "r1", "user_prompt": "hi", "label": 1}], kind="review")
+    with pytest.raises(tasks.SuiteError, match="true or false"):
+        tasks.load_suite(bad_rev)
+
+    pat_dir = write_suite(
+        tmp_path / "pat",
+        [
+            {
+                "id": "pat-1",
+                "user_prompt": "Fix return value in src/mod.py",
+                "files": {"src/mod.py": "def f():\n    return 1\n", "drop.py": "old\n"},
+                "gold_files": {"src/mod.py": "def f():\n    return 2\n", "drop.py": None},
+            }
+        ],
+        kind="patch",
+    )
+    pat = tasks.load_suite(pat_dir)
+    assert pat.kind == "patch" and tasks.check_structure(pat) == []
+    assert set(pat.tasks) == {pat.tasks[0]}  # Task remains hashable with dict fields
+    assert pat.tasks[0].to_json()["gold_files"]["drop.py"] is None
+
+    noop_pat = write_suite(
+        tmp_path / "noop-pat",
+        [{"id": "p1", "user_prompt": "Noop", "files": {"a.py": "x\n"}, "gold_files": {"a.py": "x\n"}}],
+        kind="patch",
+    )
+    assert any("does not differ" in p for p in tasks.check_structure(tasks.load_suite(noop_pat)))
+
+    bad_path_pat = write_suite(
+        tmp_path / "bad-path",
+        [{"id": "p2", "user_prompt": "Traversal", "files": {"../a.py": "x\n"}, "gold_files": {"../a.py": "y\n"}}],
+        kind="patch",
+    )
+    assert any("relative paths" in p for p in tasks.check_structure(tasks.load_suite(bad_path_pat)))

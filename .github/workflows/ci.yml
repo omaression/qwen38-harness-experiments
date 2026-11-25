@@ -17,7 +17,7 @@ on:
       feature:
         description: The feature to evaluate on the live endpoint
         type: choice
-        options: [bugfix, judge]
+        options: [bugfix, judge, review, patch]
         default: bugfix
       split:
         description: The split to evaluate on (dev does not spend the held-out split)
@@ -63,6 +63,12 @@ jobs:
         run: llm-eval tasks validate --suite tasks/demo
       - name: Validate the HumanEvalFix suite
         run: llm-eval tasks validate --suite tasks/humanevalfix
+      - name: Validate the SWE-Review-Bench suite
+        run: llm-eval tasks validate --suite tasks/swe_review_bench
+      - name: Validate the SWE-Coder-Effort suite
+        run: llm-eval tasks validate --suite tasks/swe_coder_effort
+      - name: Check the generated report tables
+        run: python scripts/make_report_tables.py --check
       - name: Verify the ledger
         run: llm-eval ledger verify
 
@@ -176,7 +182,7 @@ jobs:
                 *)
                   run=$name; candidate=qwen38-adapters; baseline=qwen38-base ;;
               esac
-              feature=${run%%-*}; split=${run#*-}
+              split=${run##*-}; feature=${run%-*}
               out="/tmp/$(basename "$exp").$name.json"
               if ! llm-eval gate --feature "$feature" --split "$split" --suite "tasks/$suite" \
                 --candidate "${exp}${candidate}" --baseline "${exp}${baseline}" > "$out"; then

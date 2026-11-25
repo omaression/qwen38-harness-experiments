@@ -1,0 +1,60 @@
+{
+  "title": "Qwen3.8-27B Coder Reasoning Effort Ablation (xhigh vs medium vs low)",
+  "suite": "swe_coder_effort",
+  "feature": "patch",
+  "provenance": "CC-BY-4.0 nvidia/Nemotron-Cascade-RL-SWE",
+  "source_candidates": 300,
+  "kept_tasks": 297,
+  "dropped_count": 3,
+  "dropped_tasks": [
+    {
+      "id": "cog-creators-red-discordbot-1984",
+      "orig_id": "coder:nvidia/Nemotron-Cascade-RL-SWE:Cog-Creators__Red-DiscordBot-1984",
+      "reasons": [
+        "cog-creators-red-discordbot-1984: gold_files['redbot/core/bot.py'] trips block-class SAST rule(s) interpreter-tamper; a rule that fires on a task's own code would make the gate refuse correct answers"
+      ]
+    },
+    {
+      "id": "pyinstaller-pyinstaller-5380",
+      "orig_id": "coder:nvidia/Nemotron-Cascade-RL-SWE:pyinstaller__pyinstaller-5380",
+      "reasons": [
+        "pyinstaller-pyinstaller-5380: gold_files['PyInstaller/archive/writers.py'] trips block-class SAST rule(s) unsafe-deserialization; a rule that fires on a task's own code would make the gate refuse correct answers"
+      ]
+    },
+    {
+      "id": "pyinstaller-pyinstaller-7462",
+      "orig_id": "coder:nvidia/Nemotron-Cascade-RL-SWE:pyinstaller__pyinstaller-7462",
+      "reasons": [
+        "pyinstaller-pyinstaller-7462: gold_files['PyInstaller/isolated/_child.py'] trips block-class SAST rule(s) unsafe-deserialization; a rule that fires on a task's own code would make the gate refuse correct answers"
+      ]
+    }
+  ],
+  "repositories": 65,
+  "splits": {
+    "dev": 128,
+    "heldout": 169,
+    "all": 297
+  },
+  "arms": {
+    "effort-xhigh": "Qwen3.8-27B base with reasoning_effort=xhigh",
+    "effort-medium": "Qwen3.8-27B base with reasoning_effort=medium",
+    "effort-low": "Qwen3.8-27B base with reasoning_effort=low"
+  },
+  "comparisons": {
+    "D1": {
+      "candidate": "effort-medium",
+      "baseline": "effort-xhigh",
+      "description": "Medium vs xhigh reasoning effort on patch generation"
+    },
+    "D2": {
+      "candidate": "effort-low",
+      "baseline": "effort-xhigh",
+      "description": "Low vs xhigh reasoning effort on patch generation"
+    },
+    "D3": {
+      "candidate": "effort-low",
+      "baseline": "effort-medium",
+      "description": "Low vs medium reasoning effort on patch generation"
+    }
+  }
+}

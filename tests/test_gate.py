@@ -539,5 +539,47 @@ def test_report_does_not_alias_the_arms() -> None:
 
 def test_module_constants() -> None:
     assert gate.RULE == "noninferior/1" and gate.REPORT_SCHEMA == "llm_eval_harness.report/1"
-    assert dict(DEFAULT_FLOORS) == {"bugfix": 0.5, "judge": 0.7}
+    assert dict(DEFAULT_FLOORS) == {"bugfix": 0.5, "judge": 0.7, "review": 0.65, "patch": 0.7}
+    assert gate.WRITES_CODE == frozenset({"bugfix", "patch"})
     assert (HELDOUT_BUDGET, EPS) == (10, 1e-9)
+
+
+def test_review_and_patch_gates_and_warnings() -> None:
+    patch_cand = make_arm(
+        feature="patch",
+        results=[
+            ItemResult("patch:a", "patch", "a", "a", "heldout", False, True, True, False, True, 0, sast_block=("eval-exec",)),
+            ItemResult("patch:b", "patch", "b", "b", "heldout", True, True, True, False, True, 0),
+        ],
+    )
+    patch_base = make_arm(
+        name="baseline",
+        feature="patch",
+        results=[
+            ItemResult("patch:a", "patch", "a", "a", "heldout", True, True, True, False, True, 0),
+            ItemResult("patch:b", "patch", "b", "b", "heldout", True, True, True, False, True, 0),
+        ],
+    )
+    patch_cmp = compare("patch", patch_cand.results, patch_base.results, split="heldout", resamples=50)
+    patch_dec = decide(patch_cand, patch_base, patch_cmp, GateConfig())
+    sast_gate = next(g for g in patch_dec.gates if g.gate == "new_sast_violations")
+    assert sast_gate.detail["applicable"] is True and sast_gate.passed is False and not patch_dec.promote
+
+    review_metrics = {
+        "schema_validity": 1.0,
+        "think_validity": 1.0,
+        "balanced_accuracy": 0.5,
+        "primary": 0.5,
+        "items": 60,
+        "balanced_accuracy_ci95": [0.35, 0.65],
+        "approve_rate": 0.95,
+    }
+    rev_arm = make_arm(feature="review", metrics=review_metrics)
+    rev_dec = decide(rev_arm, None, None, GateConfig())
+    rev_primary = next(g for g in rev_dec.gates if g.gate == "primary")
+    rev_sast = next(g for g in rev_dec.gates if g.gate == "new_sast_violations")
+    assert rev_primary.bound == 0.65 and not rev_dec.promote
+    assert rev_sast.enforced is False and rev_sast.detail["applicable"] is False
+    warns = report_warnings(rev_arm, None, None, GateConfig())
+    assert any("reviewer approves 0.950" in w for w in warns)
+    assert any("reviewer's balanced accuracy" in w for w in warns)

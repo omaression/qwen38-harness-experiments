@@ -20,9 +20,10 @@ A product would apply `patched_code` directly, so the harness scores what the pr
 get. Malformed JSON, a patch that only satisfies the test it was shown, and a patch that reaches
 for `eval` are all failures, each counted in its own metric.
 
-**A second feature**, an LLM patch-correctness judge, answers `{"verdict": true | false}` for a
-proposed patch. Its labels come from running the tests, never from another model. It is here to
-show classifier metrics, and because LLM judges are easy to trust and hard to verify.
+**Additional features** extend the same paired gate:
+- `judge`: an LLM patch-correctness judge (`{"verdict": true | false}`) scored against execution labels.
+- `review`: a diff code reviewer (`{"passed": true | false, "defect_severity": ..., "line_comments": [...]}`) scored on `review` or `function` suites against execution-derived labels.
+- `patch`: a multi-file unified diff coder (`{"explanation": ..., "unified_diff": ...}`) scored on `patch` or `function` suites by pure-Python diff application, non-no-op checks, Python AST parsing, and SAST.
 
 **The question CI answers** on every push and pull request: *does this change make the feature
 worse on tasks it was not tuned on?* A "change" is anything that alters the feature's
@@ -43,7 +44,8 @@ manually triggered job evaluates a live endpoint when repository secrets configu
 | `sandbox` | Model-written code in a temporary directory, a child process and a deadline |
 | `verdicts` | Think-block validity, strict JSON schema validity, the strict execution verdict |
 | `sast` | An AST-based scan for unsafe or harness-gaming constructs |
-| `features` | `bugfix` and `judge`: their items and how one reply is scored |
+| `diff_apply` | Pure-Python unified diff parser and applier with safety checks and +/-50 line offset fuzz |
+| `features` | `bugfix`, `judge`, `review`, and `patch`: their items and how one reply is scored |
 | `validation` | The checks a suite must pass before anything is scored on it |
 | `runner` | Evaluate one arm, record one arm, run the gate |
 | `metrics` | Rates with Wilson intervals, classifier metrics, the paired comparison |
@@ -119,14 +121,21 @@ The records in `records.py` are the only types that cross module boundaries:
 
 ### Format
 
-A suite is a directory with `suite.json` and `tasks.jsonl`:
+A suite is a directory with `suite.json` (`kind` defaults to `"function"`, and may be `"function"`,
+`"review"`, or `"patch"`) and either `tasks.jsonl` or `tasks.jsonl.gz` (having both is refused):
 
 ```json
 {"schema": "llm_eval_harness.suite/1", "name": "demo", "version": 1,
  "heldout_pct": 50, "synthetic": true, "description": "..."}
 ```
 
-Each line of `tasks.jsonl` is one task:
+There are four suites under `tasks/`:
+- `tasks/demo`: 34 synthetic `"function"` tasks (13 dev, 21 heldout; `heldout_pct: 50`).
+- `tasks/humanevalfix`: 115 HumanEvalFix `"function"` tasks (41 dev, 74 heldout; `heldout_pct: 60`).
+- `tasks/swe_review_bench`: 400 `"review"` tasks (`tasks.jsonl.gz`; 217 dev, 183 heldout; `heldout_pct: 50`).
+- `tasks/swe_coder_effort`: 297 `"patch"` tasks (`tasks.jsonl.gz`; 128 dev, 169 heldout; `heldout_pct: 50`).
+
+Each line of a `"function"` `tasks.jsonl` is one task:
 
 | Field | Meaning |
 |---|---|
@@ -145,6 +154,11 @@ A test is `{"call": "clamp(5, 0, 3)", "expected": "3"}`, or
 `{"call": "parse_port('0')", "raises": "ValueError"}`, with an optional `"approx": 1e-9` for
 floats. `expected` is the source of a Python literal, so tuples, sets and `None` can be written.
 Unknown keys are refused: a misspelt `hiden_tests` must not load as a task without hidden tests.
+
+For `"review"` suites, each task holds `id`, `user_prompt`, boolean `label`, and optional `patch_files`,
+`group`, `tags`, `synthetic`. For `"patch"` suites, each task holds `id`, `user_prompt`, `files`
+(`{relpath: content}`), `gold_files` (`{relpath: content | null}`), and optional `group`, `tags`,
+`synthetic`.
 
 ### Shown and hidden tests
 
@@ -183,18 +197,17 @@ should hold out less.
 
 ### Validation
 
-`llm-eval tasks validate` (run by CI on every Python version) fails a suite when:
+`llm-eval tasks validate` (run by CI on every Python version across all four suites) fails a suite when:
 
 - the structure is wrong: ids, entry points defined in all three code fields, at least one shown
-  and two hidden tests, every call parses as an expression, every `expected` is a literal;
-- run in the sandbox, the buggy code passes its shown tests (then the shown test demonstrates no
+  and two hidden tests, every call parses as an expression, every `expected` is a literal (for `"function"` suites), or non-empty `user_prompt`, boolean `label` (`"review"`), and non-empty clean relative `files`/`gold_files` differing from `files` (`"patch"`);
+- run in the sandbox (`"function"` suites only), the buggy code passes its shown tests (then the shown test demonstrates no
   bug), the reference fails any test or gives different outcomes on a second run (flaky), or the
   wrong code fails a shown test or passes every hidden one;
-- a block-class SAST rule fires on the buggy, reference or wrong code (a rule that fires on a
-  correct fix would make the gate refuse correct answers);
+- a block-class SAST rule fires on the buggy, reference or wrong code (`"function"`), or on modified Python files in `gold_files` (`"patch"`);
 - a rendered prompt contains a hidden test's call text, a bug-fix prompt contains the reference
-  or the wrong code, or a judge prompt shows any code but the patch under review;
-- two tasks on opposite sides of the split have identical normalised code.
+  or the wrong code, a judge prompt shows any code but the patch under review, a review prompt injects a gold label literal, or a patch prompt leaks changed `gold_files` text;
+- two tasks on opposite sides of the split have identical normalised code (`"function"`) or normalised `user_prompt` (`"review"`, `"patch"`).
 
 ## 5. The features
 
@@ -212,6 +225,8 @@ it. `tests/test_prompts.py` pins the sha256 of every published template and the 
 | `bugfix/v2` | Adds: fix it for every input the docstring describes, not only the shown test; do not special-case test inputs; no `eval`, `exec`, subprocesses, files or network |
 | `judge/v1` | Does the patched function correctly fix the bug? Answer `{"verdict": ...}` |
 | `judge/v2` | Adds: check inputs beyond the shown test; look for special-cased test inputs |
+| `review/v1` | Review unified diff + context; answer `{"passed", "defect_severity", "line_comments"}` |
+| `patch/v1` | Generate repository-relative unified diff; answer `{"explanation", "unified_diff"}` |
 
 ### bugfix
 
@@ -236,6 +251,26 @@ Because every task contributes one item of each class, a judge that decides from
 (its wording, its function name) scores exactly 0.5 balanced accuracy. Only reading the patch
 scores higher.
 
+### review
+
+One item per task on `"review"` suites (`review:<task id>`), or two items per task on `"function"`
+suites (`review:<task id>:reference` / `:wrong`, with unified diff and numbered lines). Scoring
+checks optional thinking (`REVIEW_THINK`: 1 to 1,200 words) and strict `REVIEW_SCHEMA`
+(`passed: bool`, `defect_severity` in `{none, low, medium, high, critical}`, `line_comments: [dict, ...]`).
+Predicted = `passed` when valid, else `None`. No code runs and no SAST applies.
+
+### patch
+
+One item per task (`patch:<task id>`) on `"patch"` or `"function"` suites. Scoring checks optional
+thinking (`PATCH_THINK`: 1 to 1,200 words), strict `PATCH_SCHEMA` (`explanation`, `unified_diff`),
+pure-Python diff application via `diff_apply.apply_unified_diff` (exact context first, then
++/-50-line offset fuzz and trailing-whitespace fallback; path traversal, `.git`, symlinks, and
+binary patches refused), non-no-op edits (`changed_files` non-empty), `ast.parse` on modified or
+added Python files (when the original parsed), and zero added block-class SAST findings (a lenient
+parse is also SAST-scanned). `gold_match` compares updated files to `gold_files` (with AST equality
+fallback for `.py`/`.pyi`). `correct` (`usable`) requires strict schema, clean non-no-op apply,
+valid Python syntax, and zero added block SAST findings.
+
 ## 6. Model clients and cassettes
 
 **The live client** (`OpenAICompatClient`) POSTs `ChatRequest.payload()` to
@@ -257,8 +292,12 @@ the recorder leaves the item for the next resume.
 cassettes/<arm>/manifest.json      arm name, synthetic flag, and per feature: prompt id, model,
                                    settings, the suite's name and sha256, the item count
 cassettes/<arm>/bugfix.jsonl       {"item_id", "request_sha256", "response": {...}} per line
-cassettes/<arm>/judge.jsonl
+cassettes/<arm>/judge.jsonl        (or <feature>.jsonl.gz for deterministic gzip tapes)
 ```
+
+Tapes may be plain `<feature>.jsonl` or gzipped `<feature>.jsonl.gz` (`CassetteWriter(..., compress=True)`
+writes deterministic gzip with `mtime=0`, and `fingerprint()` hashes `manifest.json` and every `*.jsonl`
+or `*.jsonl.gz` directly in the directory; `.jsonl` and `.jsonl.gz` cannot be mixed for the same feature).
 
 **Replay** (`ReplayClient`) rebuilds each item's request from the manifest's prompt, model and
 settings, looks the recording up by item id, and compares the recorded `request_sha256` with the
@@ -410,6 +449,20 @@ approve_rate = (TP + FP) / n
 TPR and TNR carry Wilson intervals, and balanced accuracy a bootstrap interval over tasks.
 `vs_chance` says whether that interval lies above 0.5.
 
+### Per arm: review
+
+Uses the same classifier metrics (`classifier_metrics`, `balanced_accuracy` primary, `tpr`, `tnr`,
+`approve_rate`, `confusion`, `vs_chance`) over all labeled items, with a cluster bootstrap interval
+(`"<seed>/review/arm"`).
+
+### Per arm: patch
+
+| Metric | Definition |
+|---|---|
+| `usable_rate` (primary) | usable items (`correct`) / n, with `usable` count and Wilson 95% interval |
+| `applied_rate`, `noop_rate`, `gold_match_rate` | diffs applied / n, no-op diffs / n, diffs matching `gold_files` / n |
+| `sast`, `by_tag`, validity, cost | block/flag findings per rule, usable items per tag, schema/think/lenient, tokens and latency |
+
 ### The Wilson interval
 
 For k successes in n trials and z = 1.96:
@@ -462,7 +515,7 @@ them pass. `regression_test` applies only with a baseline, `gain_test` only with
 |---|---|
 | `schema_validity` | candidate schema validity >= 0.95 |
 | `think_validity` | candidate think validity >= 0.90 |
-| `new_sast_violations` | no (item, rule) pair with a block finding in the candidate's reply and none of that rule in the baseline's reply to the same item (bugfix only; reported as not applicable for the judge) |
+| `new_sast_violations` | no (item, rule) pair with a block finding in the candidate's reply and none of that rule in the baseline's reply to the same item (`bugfix` and `patch`; reported as not applicable for `judge` and `review`) |
 | `primary` | `delta >= -margin` with `--tie pass` (the default), `delta > -margin` with `--tie fail` |
 | `regression_test` | not (losses > gains and McNemar p < alpha) |
 | `gain_test` | only with `--require-gain`: gains > losses and McNemar p < alpha |
@@ -486,7 +539,7 @@ guard cannot fire, since delta >= 0 means losses <= gains. It can for balanced a
 unbalanced classes, where items weigh by class.)
 
 **Without a baseline** (`--baseline none`), the primary gate compares the candidate with an
-absolute floor (bugfix 0.5, judge 0.7, or `--floor`), and the paired tests are skipped. The tie
+absolute floor (bugfix 0.5, judge 0.7, review 0.65, patch 0.7, or `--floor`), and the paired tests are skipped. The tie
 rule applies there too: `primary >= floor` with `--tie pass`, `primary > floor` with `--tie fail`.
 
 **Refusals.** The gate refuses (exit 2, no report) when the arms belong to different features or
@@ -561,14 +614,18 @@ features start with `cassettes/baseline` as their baseline.
 ## 12. CI
 
 `.github/workflows/ci.yml` runs on every push to `main`, every pull request, and on manual
-dispatch (inputs: `feature`, bugfix or judge; `split`, dev or heldout, default dev). It has
+dispatch (inputs: `feature`, `bugfix`, `judge`, `review`, or `patch`; `split`, dev or heldout, default dev). It has
 `contents: read` permission only, its checkouts keep no credentials, every script runs under
 `bash -eo pipefail`, and a newer run for the same branch or pull request cancels a stale one.
 The actions are pinned to their current major versions (`actions/checkout@v7`,
 `actions/setup-python@v7`, `actions/upload-artifact@v7`).
 
 1. **tests** (Python 3.10, 3.11 and 3.12): install the package with its test extra,
-   `python -m pytest -q`, `llm-eval tasks validate --suite tasks/demo`, `llm-eval ledger verify`.
+   `python -m pytest -q`, `llm-eval tasks validate --suite tasks/demo`,
+   `llm-eval tasks validate --suite tasks/humanevalfix`,
+   `llm-eval tasks validate --suite tasks/swe_review_bench`,
+   `llm-eval tasks validate --suite tasks/swe_coder_effort`,
+   `python scripts/make_report_tables.py --check`, and `llm-eval ledger verify`.
 2. **regression-gate** (after tests; replay only, no secrets):
    - for each feature, `llm-eval gate --feature <f> --split heldout --candidate cassettes/candidate
      --baseline @current --items-out reports/items/candidate` into `reports/<f>-candidate.json`;
@@ -668,6 +725,9 @@ pyproject.toml                  package llm_eval_harness, console script llm-eva
 src/llm_eval_harness/           the harness (standard library only)
 tests/                          unit tests; test_demo.py (the demo end to end); test_workflow.py (ci.yml)
 tasks/demo/                     the synthetic demo suite: suite.json, tasks.jsonl
+tasks/humanevalfix/             115 Python repair tasks from HumanEvalFix
+tasks/swe_review_bench/         400 PR review tasks (kind: review, tasks.jsonl.gz)
+tasks/swe_coder_effort/         297 multi-file patch tasks (kind: patch, tasks.jsonl.gz)
 cassettes/baseline/             synthetic recordings: the current baseline (prompts v1)
 cassettes/candidate/            synthetic recordings: a candidate that should promote (prompts v2)
 cassettes/candidate-regressed/  synthetic recordings: a candidate the gate must reject

@@ -1,0 +1,27 @@
+{
+  "arm": "effort-low",
+  "description": "Qwen3.8-27B base patch generations at reasoning_effort=low",
+  "features": {
+    "patch": {
+      "file": "patch.jsonl.gz",
+      "items": 297,
+      "model": "qwen38",
+      "prompt": "patch/v1",
+      "settings": {
+        "extra": {
+          "presence_penalty": 0.0,
+          "reasoning_effort": "low",
+          "top_k": 20,
+          "top_p": 0.95
+        },
+        "max_tokens": 32768,
+        "seed": null,
+        "temperature": 0.1
+      },
+      "suite": "swe_coder_effort",
+      "suite_sha256": "22a758623f529c8f21f142a9c76f88252a931289130412042d3f91c9c039fea8"
+    }
+  },
+  "schema": "llm_eval_harness.cassettes/1",
+  "synthetic": false
+}

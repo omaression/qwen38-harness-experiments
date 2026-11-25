@@ -18,6 +18,8 @@ them need no brace escaping. Fields:
 
     bugfix   $entry_point, $buggy_code, $shown_tests
     judge    $entry_point, $buggy_code, $shown_tests, $patched_code
+    review   $user_prompt
+    patch    $user_prompt
 
 $shown_tests is the task's shown tests, each rendered by render_check, one per line. The code
 fields are shown inside fenced code blocks, without their leading and trailing newlines. A
@@ -54,13 +56,15 @@ from .records import ChatRequest, Check, Item, Message, ModelSettings
 from .util import sha256_json
 
 #: The template a new recording uses for each feature when none is named.
-CURRENT: Mapping[str, str] = {"bugfix": "bugfix/v2", "judge": "judge/v2"}
+CURRENT: Mapping[str, str] = {"bugfix": "bugfix/v2", "judge": "judge/v2", "review": "review/v1", "patch": "patch/v1"}
 
 # The placeholders each feature's templates may use (see PLACEHOLDERS). A new feature adds its
 # entry here, next to its templates.
 _FIELDS: Mapping[str, tuple[str, ...]] = {
     "bugfix": ("entry_point", "buggy_code", "shown_tests"),
     "judge": ("entry_point", "buggy_code", "shown_tests", "patched_code"),
+    "review": ("user_prompt",),
+    "patch": ("user_prompt",),
 }
 
 
@@ -277,8 +281,60 @@ _JUDGE_V2 = PromptTemplate(
     ),
 )
 
+_REVIEW_V1 = PromptTemplate(
+    id="review/v1",
+    feature="review",
+    system=(
+        "You are the code reviewer of a five-agent coding team: orchestrator, coder, review, security and judge. You review one patch for defects before the judge decides on it. You do not rewrite the patch.\n\n"
+        "The user message holds the task, the orchestrator's plan, the patch as a unified diff, and the code around the changed lines.\n\n"
+        "# What to check\n\n"
+        "1. Does the patch do everything the task asks?\n"
+        "2. Is it correct for the inputs it will really receive: empty and missing values, boundaries, error paths, and what its callers pass?\n"
+        "3. Does it break behaviour that worked before: changed signatures or defaults, or removed code that other code still uses?\n"
+        "4. Are the tests real: do they exercise the new behaviour and fail without it? Were any tests weakened or removed?\n"
+        "5. Does it contain changes the task did not ask for: unrelated edits, debugging leftovers, reformatting?\n\n"
+        "Security is audited separately. Report a security problem here only when it is also a correctness defect.\n\n"
+        "# How to judge\n\n"
+        "- Report only defects you can state concretely: the file, the line, the input or situation that triggers the defect, and the wrong result. Do not report style preferences, naming opinions or hypothetical improvements.\n"
+        "- Severity of a defect: `critical` when the task is not done, or the patch loses data or crashes on common input; `high` when it gives a wrong result in a realistic case; `medium` when it is wrong in an edge case, or new behaviour has no test; `low` for a minor defect with little impact.\n"
+        "- `defect_severity` is the highest severity among your line comments, or `none` when you have none.\n"
+        "- `passed` is true when `defect_severity` is `none` or `low`, and false otherwise.\n\n"
+        "# Reply\n\n"
+        "Think the review through before answering, and keep the thinking focused: about 40 to 1,200 words. After thinking, reply with exactly one JSON object and nothing else: no prose, no Markdown, no code fences.\n\n"
+        '{"passed": true | false, "defect_severity": "none" | "low" | "medium" | "high" | "critical", "line_comments": [{"file": "<path>", "line": <number>, "comment": "<defect and fix>", "severity": "low" | "medium" | "high" | "critical"}, ...]}\n\n'
+        "- `file`: the repository-relative path. `line`: the 1-based line number in the file after the patch.\n"
+        "- `comment`: the defect, what triggers it, and the fix, in one or two sentences.\n"
+        "- `line_comments` is `[]` when you found no defects."
+    ),
+    user="$user_prompt",
+    notes="Multi-file diff code reviewer prompt matching recorded Qwen requests.",
+)
+
+_PATCH_V1 = PromptTemplate(
+    id="patch/v1",
+    feature="patch",
+    system=(
+        "You are the coder of a five-agent coding team: orchestrator, coder, review, security and judge. You turn the orchestrator's plan into one patch. Review and security audit your patch, the tests run on it in an isolated checkout, and the judge decides whether it is accepted.\n\n"
+        "The user message holds the task, the plan, and the current contents of the files the plan names. On a retry it also holds the feedback on your previous attempt: the judge's feedback, review comments, security findings and failing test output. Address every point the feedback raises.\n\n"
+        "# How to write the patch\n\n"
+        "- Write one unified diff in `git diff` format against the files exactly as shown. For each file: a `--- a/<path>` line and a `+++ b/<path>` line (`--- /dev/null` for a new file, `+++ /dev/null` for a deleted one), then hunks headed `@@ -<start>,<count> +<start>,<count> @@` with three lines of unchanged context around each change. Context and removed lines must match the file character for character, including indentation and trailing whitespace.\n"
+        "- Paths are repository-relative. Change only what the task needs: no unrelated edits, reformatting or debugging leftovers.\n"
+        "- Write code that is correct for the inputs it will really receive, handles its error cases, and passes the plan's verification commands. Follow the style of the surrounding code. Never weaken or delete a test to make it pass.\n"
+        "- Do not use `shell=True`, `eval(`, `pickle.loads(` or `os.system(`; the security gate rejects them. Pass subprocess arguments as a list, parse data with a real parser, and keep secrets out of code.\n\n"
+        "# Reply\n\n"
+        "Think the change through before answering, and keep the thinking focused: about 40 to 1,200 words. After thinking, reply with exactly one JSON object and nothing else: no prose, no Markdown, no code fences.\n\n"
+        '{"explanation": "<what you changed and why>", "unified_diff": "<the patch>"}\n\n'
+        "- `explanation`: two to five sentences: what the patch changes and why; on a retry, how it answers the feedback.\n"
+        "- `unified_diff`: the whole patch as one JSON string, with newlines written as \\n and quotes and backslashes escaped. It ends with a newline."
+    ),
+    user="$user_prompt",
+    notes="Multi-file unified diff coder prompt matching recorded Qwen requests.",
+)
+
 #: Every published template by id. Never edit an entry; add the next version instead.
-TEMPLATES: Mapping[str, PromptTemplate] = {t.id: t for t in (_BUGFIX_V1, _BUGFIX_V2, _JUDGE_V1, _JUDGE_V2)}
+TEMPLATES: Mapping[str, PromptTemplate] = {
+    t.id: t for t in (_BUGFIX_V1, _BUGFIX_V2, _JUDGE_V1, _JUDGE_V2, _REVIEW_V1, _PATCH_V1)
+}
 
 
 # ---- lookup -------------------------------------------------------------------------------------
@@ -342,12 +398,15 @@ def render_messages(template: PromptTemplate, item: Item) -> tuple[Message, ...]
         raise PromptError(f"no prompt fields are defined for feature {template.feature!r}") from None
     if "patched_code" in names and item.patched_code is None:
         raise ValueError(f"a {template.feature} item needs patched_code: {item.id}")
+    if "user_prompt" in names and item.user_prompt is None:
+        raise ValueError(f"a {template.feature} item needs user_prompt: {item.id}")
     task = item.task
     available = {
         "entry_point": task.entry_point,
         "buggy_code": _code_block(task.buggy_code),
         "shown_tests": "\n".join(render_check(check) for check in task.shown_tests),
         "patched_code": _code_block(item.patched_code or ""),
+        "user_prompt": item.user_prompt or "",
     }
     fields = {name: available[name] for name in names}
     try:

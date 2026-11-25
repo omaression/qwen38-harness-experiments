@@ -34,11 +34,15 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def copy_inputs(dst: Path) -> Path:
-    """The script's inputs: every experiment's expected reports and the report's markdown sections."""
+    """The script's inputs: every experiment's expected reports, optional metadata, and the report's markdown sections."""
     for report in sorted((ROOT / "experiments").glob("*/expected/*.json")):
         rel = report.relative_to(ROOT)
         (dst / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(report, dst / rel)
+    for meta in sorted((ROOT / "experiments").glob("*/EXPERIMENT.json")):
+        rel = meta.relative_to(ROOT)
+        (dst / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(meta, dst / rel)
     (dst / "docs" / "report").mkdir(parents=True)
     for md in (ROOT / "docs" / "report").glob("*.md"):
         shutil.copyfile(md, dst / "docs" / "report" / md.name)
@@ -160,7 +164,13 @@ def test_experiment_ids_and_a_shared_id_is_refused(tmp_path: Path) -> None:
     root = copy_inputs(tmp_path)
     assert run("--root", str(root)).returncode == 0
     names = sorted(p.name for p in (root / "docs" / "paper" / "tables").glob("*.tex"))
-    assert names == sorted(f"{eid}-{kind}.tex" for eid in ("exp-a", "exp-c", "exp-c-demo") for kind in ("arms", "gate"))
+    expected_eids = sorted({
+        f"{p.parent.parent.name.split('-', 2)[0]}-{p.parent.parent.name.split('-', 2)[1]}"
+        + ("-demo" if p.parent.parent.name.endswith("-demo") else "")
+        for p in (ROOT / "experiments").glob("*/expected/*.json")
+    })
+    assert {"exp-a", "exp-c", "exp-c-demo"}.issubset(expected_eids)
+    assert names == sorted(f"{eid}-{kind}.tex" for eid in expected_eids for kind in ("arms", "gate"))
     other = root / "experiments" / "exp-c-other" / "expected"
     other.mkdir(parents=True)
     shutil.copyfile(EXP_A / "bugfix-heldout.json", other / "bugfix-heldout.json")
@@ -199,7 +209,43 @@ def test_unknown_marker_and_bad_report_are_refused(tmp_path: Path) -> None:
 def test_output_is_deterministic(tmp_path: Path) -> None:
     first, second = copy_inputs(tmp_path / "a"), copy_inputs(tmp_path / "b")
     assert run("--root", str(first)).returncode == 0 and run("--root", str(second)).returncode == 0
-    for rel in ("docs/report/tables.md", "docs/report/06-results.md", "docs/paper/tables/exp-a-gate.tex",
-                "docs/paper/tables/exp-a-arms.tex", "docs/paper/tables/exp-c-gate.tex", "docs/paper/tables/exp-c-arms.tex",
-                "docs/paper/tables/exp-c-demo-gate.tex", "docs/paper/tables/exp-c-demo-arms.tex"):
+    tex_files = sorted(f"docs/paper/tables/{p.name}" for p in (first / "docs" / "paper" / "tables").glob("*.tex"))
+    assert tex_files == sorted(f"docs/paper/tables/{p.name}" for p in (second / "docs" / "paper" / "tables").glob("*.tex"))
+    for rel in ("docs/report/tables.md", "docs/report/06-results.md", *tex_files):
         assert (first / rel).read_bytes() == (second / rel).read_bytes(), rel
+
+
+def test_review_patch_and_experiment_json_support(tmp_path: Path) -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("make_report_tables", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("make_report_tables", mod)
+    spec.loader.exec_module(mod)
+
+    assert mod.experiment_title("exp-b") == "Experiment B"
+    assert mod.experiment_title("exp-d") == "Experiment D"
+    assert mod.METRIC_NAMES["usable_rate"] == "usable patch rate"
+
+    root = copy_inputs(tmp_path)
+    assert run("--root", str(root)).returncode == 0
+    tables = (root / "docs" / "report" / "tables.md").read_text(encoding="utf-8")
+    if (ROOT / "experiments" / "exp-b-review-lora" / "expected").is_dir():
+        exp_b = section(tables, "exp-b-review-lora")
+        assert "| review | heldout | 183 |" in exp_b
+        assert "TPR " in exp_b and "TNR " in exp_b and "approve " in exp_b
+    if (ROOT / "experiments" / "exp-d-coder-effort" / "expected").is_dir():
+        exp_d = section(tables, "exp-d-coder-effort")
+        assert "| D1 | patch | heldout |" in exp_d
+        assert "applied " in exp_d and "gold " in exp_d and "block SAST " in exp_d
+
+    # EXPERIMENT.json absent -> defaults to Experiment B / D and built-in descriptions/comparisons.
+    for meta in (root / "experiments").glob("*/EXPERIMENT.json"):
+        meta.unlink()
+    assert run("--root", str(root)).returncode == 0
+    tables_no_meta = (root / "docs" / "report" / "tables.md").read_text(encoding="utf-8")
+    if (ROOT / "experiments" / "exp-b-review-lora" / "expected").is_dir():
+        assert "## Experiment B: `experiments/exp-b-review-lora`" in tables_no_meta
+    if (ROOT / "experiments" / "exp-d-coder-effort" / "expected").is_dir():
+        assert "## Experiment D: `experiments/exp-d-coder-effort`" in tables_no_meta
+        assert "D1: effort-medium against effort-xhigh, medium vs xhigh reasoning effort" in tables_no_meta

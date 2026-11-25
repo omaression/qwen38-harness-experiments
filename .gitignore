@@ -27,3 +27,15 @@ artifacts/
 .vscode/
 *.swp
 .DS_Store
+
+# LaTeX build outputs (keep docs/paper/IEEEtran.cls and docs/paper/IEEEtran.bst tracked)
+docs/paper/*.aux
+docs/paper/*.bbl
+docs/paper/*.blg
+docs/paper/*.log
+docs/paper/*.out
+docs/paper/*.toc
+docs/paper/*.fls
+docs/paper/*.fdb_latexmk
+docs/paper/*.synctex.gz
+docs/paper/main.pdf

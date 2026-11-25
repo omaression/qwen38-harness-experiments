@@ -548,3 +548,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if document is not None:
         _emit(document)
     return status
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

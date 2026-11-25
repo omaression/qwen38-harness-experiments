@@ -46,7 +46,7 @@ import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -54,7 +54,11 @@ ROOT = Path(__file__).resolve().parent.parent
 REPORT_SCHEMA = "llm_eval_harness.report/1"
 SCRIPT = "scripts/make_report_tables.py"
 SPLIT_ORDER = {"heldout": 0, "dev": 1}
-METRIC_NAMES = {"resolved_rate": "resolved rate", "balanced_accuracy": "balanced accuracy"}
+METRIC_NAMES = {
+    "resolved_rate": "resolved rate",
+    "balanced_accuracy": "balanced accuracy",
+    "usable_rate": "usable patch rate",
+}
 MARKER = re.compile(
     r"(<!-- BEGIN GENERATED: (?P<name>[a-z0-9-]+) -->\n)(?P<body>.*?)(<!-- END GENERATED: (?P=name) -->)",
     re.DOTALL,
@@ -67,6 +71,11 @@ ARM_DESCRIPTIONS = {
     "bf16-vllm-rerun": "bf16-vllm recorded a second time (the no-op arm)",
     "q8-llamacpp": "Qwen3.8-27B, Q8_0 GGUF, served by llama.cpp b12682 (engine control)",
     "ternary-llamacpp": "Ternary Bonsai 2 27B, Q2_0 GGUF, served by llama.cpp b12682",
+    "qwen38-base": "Abliterated Qwen3.8-27B base, uncapped xhigh",
+    "qwen38-review-lora": "Qwen3.8-27B + public-v2-review LoRA (r=32, w700 SFT), uncapped xhigh",
+    "effort-xhigh": "Abliterated Qwen3.8-27B coder, reasoning_effort=xhigh (uncapped)",
+    "effort-medium": "Abliterated Qwen3.8-27B coder, reasoning_effort=medium (uncapped)",
+    "effort-low": "Abliterated Qwen3.8-27B coder, reasoning_effort=low (uncapped)",
 }
 ARM_ORDER = tuple(ARM_DESCRIPTIONS)
 # (candidate, baseline) -> (comparison id, what the comparison isolates).
@@ -75,7 +84,18 @@ COMPARISONS = {
     ("q8-llamacpp", "bf16-vllm"): ("C1", "engine change and 8-bit rounding (the engine control)"),
     ("ternary-llamacpp", "q8-llamacpp"): ("C2", "the ternary model at a fixed engine"),
     ("ternary-llamacpp", "bf16-vllm"): ("C3", "the whole deployment change"),
+    ("effort-medium", "effort-xhigh"): ("D1", "medium vs xhigh reasoning effort"),
+    ("effort-low", "effort-xhigh"): ("D2", "low vs xhigh reasoning effort"),
+    ("effort-low", "effort-medium"): ("D3", "low vs medium reasoning effort"),
 }
+
+
+@dataclass(frozen=True)
+class ExperimentMeta:
+    """Optional per-experiment metadata loaded from experiments/<dir>/EXPERIMENT.json."""
+    title: str | None = None
+    arm_descriptions: Mapping[str, str] = field(default_factory=dict)
+    comparisons: Mapping[tuple[str, str], tuple[str, str]] = field(default_factory=dict)
 
 
 class ReportError(ValueError):
@@ -122,7 +142,11 @@ def experiment_id(dirname: str) -> str:
     return m.group(1) + ("-demo" if dirname.endswith("-demo") else "")
 
 
-def experiment_title(eid: str) -> str:
+def experiment_title(eid: str, meta: ExperimentMeta | Mapping[str, Any] | None = None) -> str:
+    if isinstance(meta, ExperimentMeta) and meta.title:
+        return meta.title
+    if isinstance(meta, Mapping) and isinstance(meta.get("title"), str) and meta["title"].strip():
+        return meta["title"].strip()
     parts = eid.split("-")
     return "Experiment " + parts[1].upper() + (" (demo suite)" if parts[2:] == ["demo"] else "")
 
@@ -161,6 +185,7 @@ class Row:
     warnings: Sequence[str]
     rule: str
     suite: Mapping[str, Any]
+    meta: ExperimentMeta = field(default_factory=ExperimentMeta, repr=False, compare=False)
 
     @property
     def failed_gates(self) -> list[str]:
@@ -188,11 +213,76 @@ class Row:
     @property
     def comparison_id(self) -> str:
         """The comparison's id from COMPARISONS, or "<candidate> vs <baseline>" for a pair it does not list."""
-        known = COMPARISONS.get(self.pair)
+        known = (self.meta.comparisons or COMPARISONS).get(self.pair)
         return known[0] if known else f"{self.pair[0]} vs {self.pair[1]}"
 
 
-def load_report(path: Path, root: Path) -> Row:
+def _parse_meta_comparisons(raw: Any, rel: str) -> dict[tuple[str, str], tuple[str, str]]:
+    out: dict[tuple[str, str], tuple[str, str]] = {}
+    if raw is None:
+        return out
+    if isinstance(raw, Mapping):
+        for key, val in raw.items():
+            if isinstance(val, Mapping) and "candidate" in val and "baseline" in val:
+                pair = (str(val["candidate"]), str(val["baseline"]))
+                cid = str(val.get("id") or key)
+                desc = str(val.get("description") or val.get("what") or "")
+                out[pair] = (cid, desc)
+            elif "--vs--" in str(key) or " vs " in str(key):
+                cand, base = str(key).split("--vs--", 1) if "--vs--" in str(key) else str(key).split(" vs ", 1)
+                if isinstance(val, (list, tuple)) and val:
+                    out[(cand.strip(), base.strip())] = (str(val[0]), str(val[1]) if len(val) > 1 else "")
+                elif isinstance(val, Mapping):
+                    out[(cand.strip(), base.strip())] = (str(val.get("id") or key), str(val.get("description") or val.get("what") or ""))
+                else:
+                    raise ReportError(f"{rel}: invalid comparison entry for {key!r}")
+            else:
+                raise ReportError(f"{rel}: invalid comparison entry for {key!r}")
+        return out
+    if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
+        for idx, entry in enumerate(raw):
+            if not isinstance(entry, Mapping) or "candidate" not in entry or "baseline" not in entry:
+                raise ReportError(f"{rel}: comparisons[{idx}] must map candidate and baseline")
+            pair = (str(entry["candidate"]), str(entry["baseline"]))
+            cid = str(entry.get("id") or f"{pair[0]} vs {pair[1]}")
+            desc = str(entry.get("description") or entry.get("what") or "")
+            out[pair] = (cid, desc)
+        return out
+    raise ReportError(f"{rel}: comparisons must be an object or list")
+
+
+def load_experiment_meta(exp_dir: Path, root: Path) -> ExperimentMeta:
+    path = exp_dir / "EXPERIMENT.json"
+    if not path.is_file():
+        return ExperimentMeta(arm_descriptions=dict(ARM_DESCRIPTIONS), comparisons=dict(COMPARISONS))
+    rel = path.relative_to(root).as_posix()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise ReportError(f"{rel}: not readable as JSON ({e})") from None
+    if not isinstance(raw, dict):
+        raise ReportError(f"{rel}: EXPERIMENT.json must be a JSON object")
+    title = raw.get("title")
+    if title is not None and not isinstance(title, str):
+        raise ReportError(f"{rel}: title must be a string")
+    merged_arms = dict(ARM_DESCRIPTIONS)
+    for key in ("arms", "arm_descriptions"):
+        block = raw.get(key)
+        if block is None:
+            continue
+        if not isinstance(block, Mapping) or not all(isinstance(k, str) and isinstance(v, str) for k, v in block.items()):
+            raise ReportError(f"{rel}: {key} must map arm names to strings")
+        merged_arms.update(block)
+    merged_comps = dict(COMPARISONS)
+    merged_comps.update(_parse_meta_comparisons(raw.get("comparisons"), rel))
+    return ExperimentMeta(
+        title=title.strip() if isinstance(title, str) and title.strip() else None,
+        arm_descriptions=merged_arms,
+        comparisons=merged_comps,
+    )
+
+
+def load_report(path: Path, root: Path, meta: ExperimentMeta | None = None) -> Row:
     rel = path.relative_to(root).as_posix()
     try:
         r = json.loads(path.read_text(encoding="utf-8"))
@@ -220,6 +310,7 @@ def load_report(path: Path, root: Path) -> Row:
         warnings=list(r.get("warnings") or []),
         rule=str(r.get("rule", "")),
         suite=r["suite"],
+        meta=meta or ExperimentMeta(arm_descriptions=dict(ARM_DESCRIPTIONS), comparisons=dict(COMPARISONS)),
     )
 
 
@@ -227,14 +318,18 @@ def load_experiments(root: Path) -> dict[str, list[Row]]:
     """{experiment id: rows}, ordered by experiment id; rows by feature, held-out before dev, arms."""
     groups: dict[str, list[Row]] = {}
     dirs: dict[str, str] = {}
+    metas: dict[str, ExperimentMeta] = {}
     for path in sorted((root / "experiments").glob("*/expected/*.json")):
-        row = load_report(path, root)
-        eid = experiment_id(row.experiment)
-        if dirs.setdefault(eid, row.experiment) != row.experiment:
-            raise ReportError(f"experiments/{row.experiment} and experiments/{dirs[eid]} share the id {eid}")
-        groups.setdefault(eid, []).append(row)
-    order = {cid: n for n, (cid, _what) in enumerate(sorted(COMPARISONS.values()))}
-    for rows in groups.values():
+        exp_dir = path.parent.parent
+        eid = experiment_id(exp_dir.name)
+        if dirs.setdefault(eid, exp_dir.name) != exp_dir.name:
+            raise ReportError(f"experiments/{exp_dir.name} and experiments/{dirs[eid]} share the id {eid}")
+        if eid not in metas:
+            metas[eid] = load_experiment_meta(exp_dir, root)
+        groups.setdefault(eid, []).append(load_report(path, root, meta=metas[eid]))
+    for eid, rows in groups.items():
+        comp_map = metas[eid].comparisons or COMPARISONS
+        order = {cid: n for n, (cid, _what) in enumerate(sorted(comp_map.values()))}
         rows.sort(key=lambda w: (order.get(w.comparison_id, len(order)), w.comparison_id, w.feature,
                                  SPLIT_ORDER.get(w.split, 9), w.split))
     return dict(sorted(groups.items()))
@@ -255,7 +350,9 @@ def unique_arms(rows: Sequence[Row]) -> list[tuple[Row, Mapping[str, Any]]]:
                 raise ReportError(f"{r.source} and {seen[key][0].source} report different metrics for arm "
                                   f"{key[2]} ({key[0]}, {key[1]})")
             seen.setdefault(key, (r, arm))
-    rank = {name: n for n, name in enumerate(ARM_ORDER)}
+    extra_arms = rows[0].meta.arm_descriptions if rows else {}
+    order = tuple(dict.fromkeys([*ARM_ORDER, *extra_arms]))
+    rank = {name: n for n, name in enumerate(order)}
     return [seen[k] for k in sorted(seen, key=lambda k: (k[0], SPLIT_ORDER.get(k[1], 9), k[1],
                                                            rank.get(k[2], len(rank)), k[2]))]
 
@@ -263,9 +360,10 @@ def unique_arms(rows: Sequence[Row]) -> list[tuple[Row, Mapping[str, Any]]]:
 def comparisons_of(rows: Sequence[Row]) -> list[tuple[str, str, str, str]]:
     """(id, candidate, baseline, what it isolates) of each comparison, in row order."""
     out: list[tuple[str, str, str, str]] = []
+    comp_map = (rows[0].meta.comparisons if rows else None) or COMPARISONS
     for r in rows:
         if r.comparison_id not in [c[0] for c in out]:
-            out.append((r.comparison_id, r.pair[0], r.pair[1], COMPARISONS.get(r.pair, ("", ""))[1]))
+            out.append((r.comparison_id, r.pair[0], r.pair[1], comp_map.get(r.pair, ("", ""))[1]))
     return out
 
 
@@ -276,6 +374,8 @@ def arm_primary(row: Row, arm: Mapping[str, Any]) -> str:
     m = arm["metrics"]
     if row.metric == "resolved_rate" and "resolved" in m:
         return f"{num(m['primary'])} ({m['resolved']}/{m['items']})"
+    if row.metric == "usable_rate" and "usable" in m:
+        return f"{num(m['primary'])} ({m['usable']}/{m['items']})"
     return num(m.get("primary"))
 
 
@@ -321,12 +421,15 @@ ARMS_HEAD = ("Feature", "Split", "Arm", "Model", "Prompt", "Primary [95% CI]", "
 def arm_cells(row: Row, arm: Mapping[str, Any]) -> list[str]:
     m = arm["metrics"]
     ci = m.get(f"{row.metric}_ci95")
-    if row.feature == "judge" or "tpr" in m:
+    if row.feature in ("judge", "review") or "tpr" in m:
         specific = f"TPR {num(m.get('tpr'))}, TNR {num(m.get('tnr'))}, approve {num(m.get('approve_rate'))}"
     else:
         blocks = sum(len(v) if isinstance(v, (list, tuple)) else int(v) for v in ((m.get("sast") or {}).get("block") or {}).values())
-        specific = (f"overfit {num(m.get('overfit_rate'))}, hidden pass {num(m.get('hidden_pass_rate'))}, "
-                    f"block SAST {blocks}")
+        if row.feature == "patch":
+            specific = f"applied {num(m.get('applied_rate'))}, gold {num(m.get('gold_match_rate'))}, block SAST {blocks}"
+        else:
+            specific = (f"overfit {num(m.get('overfit_rate'))}, hidden pass {num(m.get('hidden_pass_rate'))}, "
+                        f"block SAST {blocks}")
     finish = m.get("finish_reasons") or {}
     return [row.feature, row.split, str(arm.get("name")), str(arm.get("model")), str(arm.get("prompt")),
             f"{num(m.get('primary'))} {interval(ci)}", num(m.get("schema_validity")), num(m.get("think_validity")),
@@ -337,6 +440,16 @@ def arm_cells(row: Row, arm: Mapping[str, Any]) -> list[str]:
 # ----------------------------------------------------------------------------- markdown
 
 
+def _row_title(eid: str, rows: Sequence[Row]) -> str:
+    return experiment_title(eid, rows[0].meta if rows else None)
+
+
+def _interval_note(rows: Sequence[Row]) -> str:
+    if any(r.feature == "patch" or r.metric == "usable_rate" for r in rows):
+        return "Wilson (resolved rate, usable patch rate)"
+    return "Wilson (resolved rate)"
+
+
 def md_table(head: Sequence[str], rows: Iterable[Sequence[str]]) -> str:
     lines = ["| " + " | ".join(md(h) for h in head) + " |", "|" + "---|" * len(head)]
     lines += ["| " + " | ".join(md(c) for c in r) + " |" for r in rows]
@@ -345,7 +458,7 @@ def md_table(head: Sequence[str], rows: Iterable[Sequence[str]]) -> str:
 
 def md_gate(eid: str, rows: Sequence[Row]) -> str:
     sources = ", ".join(f"`{r.source}`" for r in rows)
-    return (f"*Table: {experiment_title(eid)} (`experiments/{rows[0].experiment}`), gate decisions under rule "
+    return (f"*Table: {_row_title(eid, rows)} (`experiments/{rows[0].experiment}`), gate decisions under rule "
             f"`{rows[0].rule}` on suite `{rows[0].suite.get('name')}`. Δ is candidate minus baseline on the paired "
             f"items, with its paired cluster-bootstrap 95% interval; MDE80 is the minimum detectable effect at 80% "
             f"power. Generated by `{SCRIPT}` from {sources}.*\n\n" + md_table(GATE_HEAD, (gate_cells(r) for r in rows)))
@@ -353,7 +466,7 @@ def md_gate(eid: str, rows: Sequence[Row]) -> str:
 
 def md_arms(eid: str, rows: Sequence[Row]) -> str:
     body = [arm_cells(r, arm) for r in rows for arm in (r.baseline, r.candidate)]
-    return (f"*Table: {experiment_title(eid)}, per-arm metrics. Primary intervals are Wilson (resolved rate) or a "
+    return (f"*Table: {_row_title(eid, rows)}, per-arm metrics. Primary intervals are {_interval_note(rows)} or a "
             f"task-cluster bootstrap (balanced accuracy); \"Truncated\" counts replies that ended at `max_tokens`. "
             f"Generated by `{SCRIPT}`.*\n\n" + md_table(ARMS_HEAD, body))
 
@@ -364,15 +477,16 @@ def comparison_legend(rows: Sequence[Row]) -> str:
 
 
 def arm_legend(rows: Sequence[Row]) -> str:
+    descriptions = (rows[0].meta.arm_descriptions if rows else None) or ARM_DESCRIPTIONS
     names: list[str] = []
     for _r, arm in unique_arms(rows):
         if str(arm.get("name")) not in names:
             names.append(str(arm.get("name")))
-    return "; ".join(f"{n}: {ARM_DESCRIPTIONS[n]}" if n in ARM_DESCRIPTIONS else n for n in names)
+    return "; ".join(f"{n}: {descriptions[n]}" if n in descriptions else n for n in names)
 
 
 def md_gate_multi(eid: str, rows: Sequence[Row]) -> str:
-    return (f"*Table: {experiment_title(eid)}, `experiments/{rows[0].experiment}`: gate decisions under rule "
+    return (f"*Table: {_row_title(eid, rows)}, `experiments/{rows[0].experiment}`: gate decisions under rule "
             f"`{rows[0].rule}` on suite `{rows[0].suite.get('name')}`, one row per comparison, feature and split. "
             f"Comparisons: {comparison_legend(rows)}. Δ is candidate minus baseline on the paired items, with its "
             f"paired cluster-bootstrap 95% interval; MDE80 is the minimum detectable effect at 80% power; Tokens are "
@@ -392,10 +506,18 @@ def multi_arm_cells(row: Row, arm: Mapping[str, Any]) -> list[str]:
             c[11], c[12]]
 
 
+def _all_models(rows: Sequence[Row]) -> list[str]:
+    return sorted({str(arm.get("model")) for r in rows for arm in (r.baseline, r.candidate)})
+
+
 def md_arms_multi(eid: str, rows: Sequence[Row]) -> str:
-    return (f"*Table: {experiment_title(eid)}, per-arm metrics, one row per arm, feature and split. Arms: "
-            f"{arm_legend(rows)}. Every arm was served under the model name "
-            f"`{_models(rows, 'candidate')}`. Primary intervals are Wilson (resolved rate) or a task-cluster "
+    models = _all_models(rows)
+    if len(models) == 1:
+        model_note = f"Every arm was served under the model name `{models[0]}`."
+    else:
+        model_note = "Arms were served under the model names " + ", ".join(f"`{m}`" for m in models) + "."
+    return (f"*Table: {_row_title(eid, rows)}, per-arm metrics, one row per arm, feature and split. Arms: "
+            f"{arm_legend(rows)}. {model_note} Primary intervals are {_interval_note(rows)} or a task-cluster "
             f"bootstrap (balanced accuracy); \"Truncated\" counts replies that ended at `max_tokens`. The manifests "
             f"do not record the hardware or load of a recording, so latency is not comparable across engines. "
             f"Generated by `{SCRIPT}`.*\n\n" + md_table(MULTI_ARMS_HEAD, (multi_arm_cells(r, a) for r, a in unique_arms(rows))))
@@ -418,7 +540,7 @@ def tex_table(label: str, caption: str, cols: str, head: Sequence[str], rows: It
               size: str = r"\scriptsize", head_is_tex: bool = False) -> str:
     out = [f"% Generated by {SCRIPT}; do not edit. Regenerate with: python {SCRIPT}",
            r"\begin{table*}[!t]", f"\\caption{{{caption}}}", f"\\label{{{label}}}", r"\centering", size,
-           r"\setlength{\tabcolsep}{3pt}", f"\\begin{{tabular}}{{{cols}}}", r"\hline",
+           r"\setlength{\tabcolsep}{2pt}", f"\\begin{{tabular}}{{{cols}}}", r"\hline",
            " & ".join(head if head_is_tex else (tex(h) for h in head)) + r" \\", r"\hline"]
     out += [" & ".join(tex(c) for c in r) + r" \\" for r in rows]
     out += [r"\hline", r"\end{tabular}", r"\end{table*}"]
@@ -451,12 +573,12 @@ def tex_gate(eid: str, rows: Sequence[Row]) -> str:
                 f"\\texttt{{{tex(base)}}} (model {tex(_models(rows, 'baseline'))}), ")
     else:
         arms = ""
-    caption = (f"{tex(experiment_title(eid))}: gate decisions, {arms}rule \\texttt{{{tex(rows[0].rule)}}}, suite "
-               f"\\texttt{{{tex(str(rows[0].suite.get('name')))}}}. Primary metric: resolved rate (bugfix) or "
-               r"balanced accuracy (judge). $\Delta$ is candidate minus baseline on paired items with a paired "
-               r"cluster-bootstrap 95\% interval; G/L are discordant gains and losses; MDE$_{80}$ is the minimum "
-               r"detectable effect at 80\% power. Generated from the committed reports in \texttt{"
-               + tex(f"experiments/{rows[0].experiment}/expected") + "}.")
+    caption = (f"{tex(_row_title(eid, rows))}: gate decisions, {arms}rule \\texttt{{{tex(rows[0].rule)}}}, suite "
+               f"\\texttt{{{tex(str(rows[0].suite.get('name')))}}}. Primary metric: resolved rate (bugfix), "
+               r"usable patch rate (patch), or balanced accuracy (judge, review). $\Delta$ is candidate minus "
+               r"baseline on paired items with a paired cluster-bootstrap 95\% interval; G/L are discordant gains "
+               r"and losses; MDE$_{80}$ is the minimum detectable effect at 80\% power. Generated from the committed "
+               r"reports in \texttt{" + tex(f"experiments/{rows[0].experiment}/expected") + "}.")
     head = list(TEX_GATE_HEAD)
     cols = r"llrllllrrlp{0.22\textwidth}"
     if not same:
@@ -475,8 +597,8 @@ def tex_arms(eid: str, rows: Sequence[Row]) -> str:
         for arm in (r.baseline, r.candidate):
             c = arm_cells(r, arm)
             body.append([c[0], c[1], c[2], c[3], c[5], c[6], c[7], c[8], c[9], c[10], c[12]])
-    caption = (f"{tex(experiment_title(eid))}: per-arm metrics. Intervals are Wilson (resolved rate) or a "
-               "task-cluster bootstrap (balanced accuracy). Trunc.\\ counts replies cut at the token limit; "
+    caption = (f"{tex(_row_title(eid, rows))}: per-arm metrics. Intervals are Wilson (resolved rate, usable patch "
+               "rate) or a task-cluster bootstrap (balanced accuracy). Trunc.\\ counts replies cut at the token limit; "
                "Tokens is the mean completion length.")
     return tex_table(f"tab:{eid}-arms", caption, "lllllrrrrrl", TEX_ARMS_HEAD, body, head_is_tex=True)
 
@@ -490,15 +612,16 @@ def tex_gate_multi(eid: str, rows: Sequence[Row]) -> str:
     for r in rows:
         c = multi_gate_cells(r)
         body.append([c[0], c[1], c[2], c[3], c[6], c[7], c[8], c[9], c[10], c[11], c[12], c[13], c[14]])
-    caption = (f"{tex(experiment_title(eid))}: gate decisions, rule \\texttt{{{tex(rows[0].rule)}}}, suite "
+    caption = (f"{tex(_row_title(eid, rows))}: gate decisions, rule \\texttt{{{tex(rows[0].rule)}}}, suite "
                f"\\texttt{{{tex(str(rows[0].suite.get('name')))}}}, one row per comparison, feature and split. "
-               f"Comparisons: {tex(comparison_legend(rows))}. Primary metric: resolved rate (bugfix) or balanced "
-               r"accuracy (judge); Base and Cand.\ are the baseline's and the candidate's. $\Delta$ is candidate minus "
-               r"baseline on paired items with a paired cluster-bootstrap 95\% interval; G/L are discordant gains and "
-               r"losses; MDE$_{80}$ is the minimum detectable effect at 80\% power; Tokens are the mean completion "
-               r"tokens per item of candidate and baseline, and their ratio. Generated from the committed reports in "
-               r"\texttt{" + tex(f"experiments/{rows[0].experiment}/expected") + "}.")
-    return tex_table(f"tab:{eid}-gate", caption, r"lllrllllrrllp{0.09\textwidth}", TEX_MULTI_GATE_HEAD, body,
+               f"Comparisons: {tex(comparison_legend(rows))}. Primary metric: resolved rate (bugfix), usable patch "
+               r"rate (patch), or balanced accuracy (judge, review); Base and Cand.\ are the baseline's and the "
+               r"candidate's. $\Delta$ is candidate minus baseline on paired items with a paired cluster-bootstrap "
+               r"95\% interval; G/L are discordant gains and losses; MDE$_{80}$ is the minimum detectable effect at "
+               r"80\% power; Tokens are the mean completion tokens per item of candidate and baseline, and their ratio. "
+               r"Generated from the committed reports in \texttt{"
+               + tex(f"experiments/{rows[0].experiment}/expected") + "}.")
+    return tex_table(f"tab:{eid}-gate", caption, r"lllrllllrrllp{0.12\textwidth}", TEX_MULTI_GATE_HEAD, body,
                      head_is_tex=True)
 
 
@@ -511,9 +634,9 @@ def tex_arms_multi(eid: str, rows: Sequence[Row]) -> str:
     for r, arm in unique_arms(rows):
         c = multi_arm_cells(r, arm)
         body.append([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[11]])
-    caption = (f"{tex(experiment_title(eid))}: per-arm metrics. Arms: {tex(arm_legend(rows))}. Intervals are Wilson "
-               "(resolved rate) or a task-cluster bootstrap (balanced accuracy). Trunc.\\ counts replies cut at the "
-               "token limit; Tokens is the mean and Total the sum of completion tokens.")
+    caption = (f"{tex(_row_title(eid, rows))}: per-arm metrics. Arms: {tex(arm_legend(rows))}. Intervals are Wilson "
+               "(resolved rate, usable patch rate) or a task-cluster bootstrap (balanced accuracy). Trunc.\\ counts "
+               "replies cut at the token limit; Tokens is the mean and Total the sum of completion tokens.")
     return tex_table(f"tab:{eid}-arms", caption, "llllrrrrrrl", TEX_MULTI_ARMS_HEAD, body, head_is_tex=True)
 
 
@@ -535,7 +658,7 @@ def build(root: Path) -> tuple[dict[str, str], dict[str, str]]:
         blocks[f"{eid}-arms"] = (md_arms_multi if multi else md_arms)(eid, rows)
         files[f"docs/paper/tables/{eid}-gate.tex"] = (tex_gate_multi if multi else tex_gate)(eid, rows)
         files[f"docs/paper/tables/{eid}-arms.tex"] = (tex_arms_multi if multi else tex_arms)(eid, rows)
-        doc += [f"## {experiment_title(eid)}: `experiments/{rows[0].experiment}`", "", blocks[f"{eid}-gate"],
+        doc += [f"## {_row_title(eid, rows)}: `experiments/{rows[0].experiment}`", "", blocks[f"{eid}-gate"],
                 blocks[f"{eid}-arms"], "Warnings the reports carry:", "", md_warnings(rows)]
     files["docs/report/tables.md"] = "\n".join(doc).rstrip("\n") + "\n"
     return files, blocks
@@ -594,7 +717,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         if not path.is_file() or path.read_text(encoding="utf-8") != content:
-            path.write_text(content, encoding="utf-8", newline="\n")
+            path.write_bytes(content.encode("utf-8"))
             print(f"wrote {rel}")
     return 0
 

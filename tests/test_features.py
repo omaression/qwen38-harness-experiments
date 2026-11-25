@@ -14,7 +14,7 @@ import pytest
 
 from conftest import TINY_TASKS, write_suite
 from llm_eval_harness import features, tasks, verdicts
-from llm_eval_harness.features import FEATURES, BugfixFeature, Feature, JudgeFeature, ScoringError, get_feature
+from llm_eval_harness.features import FEATURES, BugfixFeature, Feature, JudgeFeature, PatchFeature, ReviewFeature, ScoringError, get_feature
 from llm_eval_harness.records import ALL, DEV, HELDOUT, ChatResponse, ItemResult, Suite
 
 TIMEOUT = 10.0
@@ -89,14 +89,19 @@ def test_a_group_is_the_cluster_of_its_tasks(tmp_path: Path) -> None:
 
 
 def test_registry_and_protocol() -> None:
+    assert set(FEATURES) == {"bugfix", "judge", "review", "patch"}
     assert get_feature("bugfix") is FEATURES["bugfix"] and get_feature("judge") is FEATURES["judge"]
-    with pytest.raises(KeyError, match="bugfix, judge"):
+    assert get_feature("review") is FEATURES["review"] and get_feature("patch") is FEATURES["patch"]
+    with pytest.raises(KeyError, match="bugfix, judge, patch, review"):
         get_feature("summariser")
     for name, feature in FEATURES.items():
         assert isinstance(feature, Feature) and feature.name == name
-    assert FEATURES["bugfix"].writes_code and not FEATURES["judge"].writes_code
+    assert FEATURES["bugfix"].writes_code and FEATURES["patch"].writes_code
+    assert not FEATURES["judge"].writes_code and not FEATURES["review"].writes_code
     assert FEATURES["bugfix"].primary_metric == "resolved_rate"
     assert FEATURES["judge"].primary_metric == "balanced_accuracy"
+    assert FEATURES["review"].primary_metric == "balanced_accuracy"
+    assert FEATURES["patch"].primary_metric == "usable_rate"
 
 
 # ---- bugfix scoring -------------------------------------------------------------------------------
@@ -251,3 +256,116 @@ def test_judge_thinking_counts_toward_think_validity(suite: Suite) -> None:
     result = JudgeFeature().score(item, too_long, timeout_s=TIMEOUT)
     assert result.correct and result.think_present and not result.think_valid
     assert any("1300 words" in p for p in result.problems), result.problems
+
+
+# ---- review & patch scoring ----------------------------------------------------------------------
+
+
+def test_review_items_and_scoring(suite: Suite, tmp_path: Path) -> None:
+    # Function suite yields 2 items per task without leaking hidden tests or opposite variant code.
+    fn_items = ReviewFeature().items(suite, ALL)
+    assert len(fn_items) == 2 * len(TINY_TASKS)
+    clamp_ref = next(i for i in fn_items if i.id == "review:t-clamp:reference")
+    assert clamp_ref.label is True and clamp_ref.user_prompt is not None and "def clamp" in clamp_ref.user_prompt
+
+    rev_suite = tasks.load_suite(
+        write_suite(
+            tmp_path / "rev",
+            [
+                {"id": "rev-a", "user_prompt": "Review patch A", "label": True, "tags": ["boundary"]},
+                {"id": "rev-b", "user_prompt": "Review patch B", "label": False, "tags": ["edge"]},
+            ],
+            kind="review",
+        )
+    )
+    assert BugfixFeature().items(rev_suite, ALL) == []
+    assert JudgeFeature().items(rev_suite, ALL) == []
+    assert PatchFeature().items(rev_suite, ALL) == []
+    items = ReviewFeature().items(rev_suite, ALL)
+    assert [i.id for i in items] == ["review:rev-a", "review:rev-b"]
+
+    ok_reply = ChatResponse(
+        content="<think>Checked boundary cases carefully.</think>\n"
+        + json.dumps({"passed": True, "defect_severity": "low", "line_comments": [{"file": "a.py", "line": 3, "comment": "Minor", "severity": "low"}]}),
+        finish_reason="stop",
+    )
+    res = ReviewFeature().score(items[0], ok_reply, timeout_s=TIMEOUT)
+    assert res.correct and res.schema_valid and res.predicted is True and res.think_valid
+    assert res.detail["defect_severity"] == "low" and res.detail["line_comments"] == 1
+
+    wrong_reply = ChatResponse(
+        content=json.dumps({"passed": True, "defect_severity": "none", "line_comments": []}),
+        finish_reason="stop",
+    )
+    res_wrong = ReviewFeature().score(items[1], wrong_reply, timeout_s=TIMEOUT)
+    assert res_wrong.schema_valid and not res_wrong.correct and res_wrong.predicted is True
+
+    bad_sev = ChatResponse(
+        content=json.dumps({"passed": False, "defect_severity": "blocker", "line_comments": []}),
+        finish_reason="stop",
+    )
+    res_sev = ReviewFeature().score(items[1], bad_sev, timeout_s=TIMEOUT)
+    assert not res_sev.schema_valid and not res_sev.lenient_valid and res_sev.predicted is None
+
+    bad_comments = ChatResponse(
+        content=json.dumps({"passed": False, "defect_severity": "high", "line_comments": ["not-a-dict"]}),
+        finish_reason="stop",
+    )
+    assert not ReviewFeature().score(items[1], bad_comments, timeout_s=TIMEOUT).schema_valid
+
+
+def test_patch_items_and_scoring(suite: Suite, tmp_path: Path) -> None:
+    fn_patch_items = PatchFeature().items(suite, ALL)
+    assert [i.id for i in fn_patch_items] == sorted(f"patch:{t['id']}" for t in TINY_TASKS)
+
+    pat_suite = tasks.load_suite(
+        write_suite(
+            tmp_path / "pat",
+            [
+                {
+                    "id": "pat-add",
+                    "user_prompt": "Update add1 in mod.py",
+                    "files": {"mod.py": "def add1(x):\n    return x\n"},
+                    "gold_files": {"mod.py": "def add1(x):\n    return x + 1\n"},
+                    "tags": ["bugfix"],
+                }
+            ],
+            kind="patch",
+        )
+    )
+    assert BugfixFeature().items(pat_suite, ALL) == []
+    assert ReviewFeature().items(pat_suite, ALL) == []
+    item = PatchFeature().items(pat_suite, ALL)[0]
+
+    exact_diff = "--- a/mod.py\n+++ b/mod.py\n@@ -1,2 +1,2 @@\n def add1(x):\n-    return x\n+    return x + 1\n"
+    res = PatchFeature().score(item, ChatResponse(content=json.dumps({"explanation": "Add 1.", "unified_diff": exact_diff}), finish_reason="stop"), timeout_s=TIMEOUT)
+    assert res.correct and res.schema_valid
+    assert res.detail["applied"] and not res.detail["noop"] and res.detail["py_parses"] and res.detail["gold_match"]
+    assert res.detail["changed_files"] == ["mod.py"]
+
+    # Clean, non-noop patch that differs from gold is still usable (correct=True, gold_match=False).
+    alt_diff = "--- a/mod.py\n+++ b/mod.py\n@@ -1,2 +1,2 @@\n def add1(x):\n-    return x\n+    return x + 2\n"
+    res_alt = PatchFeature().score(item, ChatResponse(content=json.dumps({"explanation": "Add 2.", "unified_diff": alt_diff}), finish_reason="stop"), timeout_s=TIMEOUT)
+    assert res_alt.correct and res_alt.detail["gold_match"] is False
+
+    # No-op patch fails.
+    noop_diff = "--- a/mod.py\n+++ b/mod.py\n@@ -1,2 +1,2 @@\n def add1(x):\n-    return x\n+    return x\n"
+    res_noop = PatchFeature().score(item, ChatResponse(content=json.dumps({"explanation": "Keep.", "unified_diff": noop_diff}), finish_reason="stop"), timeout_s=TIMEOUT)
+    assert res_noop.schema_valid and not res_noop.correct and res_noop.detail["noop"]
+
+    # Syntax error fails.
+    syn_diff = "--- a/mod.py\n+++ b/mod.py\n@@ -1,2 +1,2 @@\n def add1(x):\n-    return x\n+    return (\n"
+    res_syn = PatchFeature().score(item, ChatResponse(content=json.dumps({"explanation": "Bad syntax.", "unified_diff": syn_diff}), finish_reason="stop"), timeout_s=TIMEOUT)
+    assert res_syn.schema_valid and not res_syn.correct and res_syn.detail["py_parses"] is False
+
+    # Lenient fenced SAST violation is still scanned and blocked.
+    evil_diff = "--- a/mod.py\n+++ b/mod.py\n@@ -1,2 +1,2 @@\n def add1(x):\n-    return x\n+    return eval(str(x))\n"
+    fenced = "```json\n" + json.dumps({"explanation": "Eval.", "unified_diff": evil_diff}) + "\n```"
+    res_evil = PatchFeature().score(item, ChatResponse(content=fenced, finish_reason="stop"), timeout_s=TIMEOUT)
+    assert not res_evil.schema_valid and res_evil.lenient_valid and not res_evil.correct
+    assert res_evil.sast_block == ("eval-exec",)
+
+    # Failed diff application fails usable check.
+    bad_diff = "--- a/mod.py\n+++ b/mod.py\n@@ -1,2 +1,2 @@\n def nope():\n-    return 0\n+    return 1\n"
+    res_bad = PatchFeature().score(item, ChatResponse(content=json.dumps({"explanation": "Miss.", "unified_diff": bad_diff}), finish_reason="stop"), timeout_s=TIMEOUT)
+    assert res_bad.schema_valid and not res_bad.correct and not res_bad.detail["applied"]

@@ -340,6 +340,10 @@ class Ledger:
         """Distinct candidate fingerprints evaluated on this split."""
         return len(self._openings(self._parsed()).get(split_sha256, set()))
 
+    def has_candidate_opening(self, split_sha256: str, candidate_fingerprint: str) -> bool:
+        """Whether `candidate_fingerprint` already has an evaluation row on this split."""
+        return candidate_fingerprint in self._openings(self._parsed()).get(split_sha256, set())
+
     @staticmethod
     def _openings(snap: _Snapshot) -> dict[str, set[str]]:
         seen: dict[str, set[str]] = defaultdict(set)

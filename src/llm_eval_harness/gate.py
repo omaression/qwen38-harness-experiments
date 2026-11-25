@@ -88,7 +88,7 @@ from .util import display_path, round6
 RULE = "noninferior/1"
 REPORT_SCHEMA = "llm_eval_harness.report/1"
 #: The primary metric's bound when there is no baseline (the first evaluation of a feature).
-DEFAULT_FLOORS: Mapping[str, float] = {"bugfix": 0.5, "judge": 0.7}
+DEFAULT_FLOORS: Mapping[str, float] = {"bugfix": 0.5, "judge": 0.7, "review": 0.65, "patch": 0.7}
 #: Distinct candidates scored on one held-out split after which the report warns that the split
 #: is spent (ledger.heldout_openings counts them).
 HELDOUT_BUDGET = 10
@@ -97,7 +97,7 @@ SMALL_SUITE = 50
 EPS = 1e-9
 #: The features whose replies hold code, so that the new-SAST gate applies to them (the same set
 #: as features.Feature.writes_code; a new code-writing feature is added here with its floor).
-WRITES_CODE = frozenset({"bugfix"})
+WRITES_CODE = frozenset({"bugfix", "patch"})
 TIE_RULES = ("pass", "fail")
 #: An approve rate at or beyond these marks a judge that barely looks at the patch.
 RUBBER_STAMP_HIGH, RUBBER_STAMP_LOW = 0.9, 0.1
@@ -372,20 +372,21 @@ def _interval_text(ci: Sequence[float] | None) -> str:
     return "n/a" if ci is None else f"[{ci[0]:.3f}, {ci[1]:.3f}]"
 
 
-def _judge_warnings(role: str, metrics: Mapping[str, Any]) -> list[str]:
+def _judge_warnings(role: str, metrics: Mapping[str, Any], *, feature: str = "judge") -> list[str]:
     out = []
+    noun = "reviewer" if feature == "review" else "judge"
     approve = metrics.get("approve_rate")
     if approve is not None and approve >= RUBBER_STAMP_HIGH - EPS:
-        out.append(f"The {role} judge approves {approve:.3f} of the patches it sees: a rubber stamp, whatever the patch.")
+        out.append(f"The {role} {noun} approves {approve:.3f} of the patches it sees: a rubber stamp, whatever the patch.")
     elif approve is not None and approve <= RUBBER_STAMP_LOW + EPS:
-        out.append(f"The {role} judge approves only {approve:.3f} of the patches it sees: it rejects nearly every patch, correct or not.")
+        out.append(f"The {role} {noun} approves only {approve:.3f} of the patches it sees: it rejects nearly every patch, correct or not.")
     ci = metrics.get("balanced_accuracy_ci95")
     value = metrics.get("balanced_accuracy")
     if ci is not None and value is not None:
         if ci[0] <= 0.5 <= ci[1]:
-            out.append(f"The {role} judge's balanced accuracy {value:.3f} has a 95% interval {_interval_text(ci)} that includes 0.5: it is not distinguishable from chance.")
+            out.append(f"The {role} {noun}'s balanced accuracy {value:.3f} has a 95% interval {_interval_text(ci)} that includes 0.5: it is not distinguishable from chance.")
         elif ci[1] < 0.5:
-            out.append(f"The {role} judge's balanced accuracy {value:.3f} has a 95% interval {_interval_text(ci)} below 0.5: it is worse than chance.")
+            out.append(f"The {role} {noun}'s balanced accuracy {value:.3f} has a 95% interval {_interval_text(ci)} below 0.5: it is worse than chance.")
     return out
 
 
@@ -460,7 +461,7 @@ def report_warnings(
 
     for role, arm in arms:
         if "approve_rate" in arm.metrics:
-            out.extend(_judge_warnings(role, arm.metrics))
+            out.extend(_judge_warnings(role, arm.metrics, feature=arm.feature))
 
     if baseline is not None:
         c_tokens = candidate.metrics.get("completion_tokens_mean")

@@ -1,0 +1,9 @@
+{
+  "schema": "llm_eval_harness.suite/1",
+  "name": "swe_coder_effort",
+  "version": 1,
+  "kind": "patch",
+  "heldout_pct": 50,
+  "synthetic": false,
+  "description": "297 real multi-file patch tasks from CC-BY-4.0 nvidia/Nemotron-Cascade-RL-SWE across 65 repositories, clustered by repository (owner-name) for 50/50 dev/heldout split."
+}

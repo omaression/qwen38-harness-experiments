@@ -1,0 +1,9 @@
+{
+  "schema": "llm_eval_harness.suite/1",
+  "name": "swe_review_bench",
+  "version": 1,
+  "kind": "review",
+  "heldout_pct": 50,
+  "synthetic": false,
+  "description": "400 real pull-request review items from Apache-2.0 Lego-X/SWE-Review-Bench across 12 Python repositories, clustered by PR instance."
+}

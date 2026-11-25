@@ -26,8 +26,15 @@ PINNED = {
     "bugfix/v2": "fe6987aaee2f36c0e53a2fe9f0371c759f06ac53c61437fd5a9f70ce8b08c03a",
     "judge/v1": "6f9cafa596490c20b250f76260101ecc6b1434ca7760a170a9967f32ff304de2",
     "judge/v2": "f0991b81e96f73d62fb4330cfcd560644ca8063adb01e50743908ca72585e039",
+    "review/v1": "e460731827ffd4910378cb3b044f1f0c86b784f6a8048b76e6021c53fe008076",
+    "patch/v1": "98962798e5f54c42700ee2546582d54ea9f79da4b9ae6865d95db4da4a241ff9",
 }
-FIELDS = {"bugfix": {"entry_point", "buggy_code", "shown_tests"}, "judge": {"entry_point", "buggy_code", "shown_tests", "patched_code"}}
+FIELDS = {
+    "bugfix": {"entry_point", "buggy_code", "shown_tests"},
+    "judge": {"entry_point", "buggy_code", "shown_tests", "patched_code"},
+    "review": {"user_prompt"},
+    "patch": {"user_prompt"},
+}
 SENTINEL = "@@PATCHED-CODE@@"
 
 CLAMP = task_from_dict(TINY_TASKS[0])
@@ -60,6 +67,18 @@ def judge_item(task: Task, variant: str, **changes: object) -> Item:
     return dataclasses.replace(item, **changes)
 
 
+def review_item(task: Task, variant: str = "reference", **changes: object) -> Item:
+    item = Item(id=f"review:{task.id}:{variant}", feature="review", task=task, split="heldout", cluster=task.group or task.id,
+                variant=variant, label=variant == "reference", user_prompt=f"Review `{task.entry_point}`")
+    return dataclasses.replace(item, **changes)
+
+
+def patch_item(task: Task, **changes: object) -> Item:
+    item = Item(id=f"patch:{task.id}", feature="patch", task=task, split="heldout", cluster=task.group or task.id,
+                user_prompt=f"Patch `{task.entry_point}`:\n```python\n{task.buggy_code}\n```")
+    return dataclasses.replace(item, **changes)
+
+
 def text_of(messages: tuple[Message, ...]) -> str:
     return "\n".join(m.content for m in messages)
 
@@ -86,16 +105,27 @@ def test_template_sha256_is_the_documented_hash() -> None:
 
 @pytest.mark.parametrize("template", list(prompts.TEMPLATES.values()), ids=list(prompts.TEMPLATES))
 def test_template_ids_fields_and_contract(template: prompts.PromptTemplate) -> None:
-    assert re.fullmatch(r"(bugfix|judge)/v[1-9][0-9]*", template.id)
+    assert re.fullmatch(r"(bugfix|judge|review|patch)/v[1-9][0-9]*", template.id)
     assert prompts.TEMPLATES[template.id] is template
     assert template.id.split("/")[0] == template.feature
     assert placeholders(template.user) == FIELDS[template.feature]
     assert "$" not in template.system, "the system message is not a template"
-    assert "<think>...</think>" in template.system and "exactly one JSON object and nothing else" in template.system
-    keys = ("explanation", "patched_code") if template.feature == "bugfix" else ("verdict", "reason")
+    assert "exactly one JSON object and nothing else" in template.system
+    if template.feature in ("bugfix", "judge"):
+        assert "<think>...</think>" in template.system
+        max_words = 250
+    else:
+        assert "1,200 words" in template.system
+        max_words = 450
+    keys = {
+        "bugfix": ("explanation", "patched_code"),
+        "judge": ("verdict", "reason"),
+        "review": ("passed", "defect_severity", "line_comments"),
+        "patch": ("explanation", "unified_diff"),
+    }[template.feature]
     assert all(f'"{key}"' in template.system for key in keys)
     assert template.notes
-    assert len(template.system.split()) + len(template.user.split()) <= 250
+    assert len(template.system.split()) + len(template.user.split()) <= max_words
 
 
 def test_v2_adds_the_rules() -> None:
@@ -116,9 +146,11 @@ def test_templates_are_frozen() -> None:
 
 
 def test_current_templates() -> None:
-    assert dict(prompts.CURRENT) == {"bugfix": "bugfix/v2", "judge": "judge/v2"}
+    assert dict(prompts.CURRENT) == {"bugfix": "bugfix/v2", "judge": "judge/v2", "review": "review/v1", "patch": "patch/v1"}
     assert prompts.current_template("bugfix") is prompts.TEMPLATES["bugfix/v2"]
     assert prompts.current_template("judge") is prompts.TEMPLATES["judge/v2"]
+    assert prompts.current_template("review") is prompts.TEMPLATES["review/v1"]
+    assert prompts.current_template("patch") is prompts.TEMPLATES["patch/v1"]
     assert all(cid in prompts.TEMPLATES for cid in prompts.CURRENT.values())
 
 
@@ -215,6 +247,10 @@ def test_rendering_refusals() -> None:
         prompts.render_messages(prompts.TEMPLATES["judge/v1"], bugfix_item(CLAMP))
     with pytest.raises(ValueError, match="needs patched_code"):
         prompts.render_messages(prompts.TEMPLATES["judge/v2"], judge_item(CLAMP, "wrong", patched_code=None))
+    with pytest.raises(ValueError, match="needs user_prompt"):
+        prompts.render_messages(prompts.TEMPLATES["review/v1"], review_item(CLAMP, user_prompt=None))
+    with pytest.raises(ValueError, match="needs user_prompt"):
+        prompts.render_messages(prompts.TEMPLATES["patch/v1"], patch_item(CLAMP, user_prompt=None))
     sneaky = prompts.PromptTemplate("bugfix/v99", "bugfix", "s", "Fix $entry_point; the answer is $patched_code")
     with pytest.raises(prompts.PromptError, match=r"uses \$patched_code, which bugfix items do not provide"):
         prompts.render_messages(sneaky, bugfix_item(CLAMP, patched_code=CLAMP.reference_code))
@@ -299,7 +335,14 @@ def test_judge_prompts_of_the_demo_suite_differ_only_in_the_patch(template: prom
 def test_every_demo_task_renders_under_every_template() -> None:
     for template in prompts.TEMPLATES.values():
         for task in DEMO.tasks:
-            item = bugfix_item(task) if template.feature == "bugfix" else judge_item(task, "wrong")
+            if template.feature == "bugfix":
+                item = bugfix_item(task)
+            elif template.feature == "judge":
+                item = judge_item(task, "wrong")
+            elif template.feature == "review":
+                item = review_item(task)
+            else:
+                item = patch_item(task)
             system, user = prompts.render_messages(template, item)
             # every placeholder was filled (the demo code itself holds no "$")
             assert f"`{task.entry_point}`" in user.content and "$" not in user.content

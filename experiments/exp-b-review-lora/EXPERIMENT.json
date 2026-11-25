@@ -1,0 +1,8 @@
+{
+  "title": "SWE-Review-Bench Qwen3.8 Base vs Review LoRA",
+  "provenance": "Apache-2.0 Lego-X/SWE-Review-Bench",
+  "arms": {
+    "qwen38-base": "Base Qwen3.8-27B abliterated model generations",
+    "qwen38-review-lora": "SFT LoRA r=32 alpha=64 w700 review model generations"
+  }
+}

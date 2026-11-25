@@ -79,11 +79,14 @@ recorded response changes it, which is how the ledger notices a baseline edited 
 
 from __future__ import annotations
 
+import gzip
 import json
 import math
 import os
 import re
+import tempfile
 import threading
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -164,6 +167,8 @@ def read_recordings(cset: CassetteSet, feature: str) -> dict[str, Recording]:
         data = path.read_bytes()
     except FileNotFoundError:
         raise CassetteError(f"{display_path(path)}: missing, although {MANIFEST_FILE} names it for {feature!r}") from None
+    if tape.file.endswith(".jsonl.gz"):
+        data = _decompress_tape(data, display_path(path))
     recordings = _parse_rows(data, display_path(path))
     return {item_id: recordings[item_id] for item_id in sorted(recordings)}
 
@@ -174,7 +179,7 @@ def fingerprint(root: str | os.PathLike[str]) -> str:
     directory = Path(root)
     if not (directory / MANIFEST_FILE).is_file():
         raise CassetteError(f"{display_path(directory)} holds no {MANIFEST_FILE}: not a cassette set")
-    names = sorted(p.name for p in directory.iterdir() if p.is_file() and (p.name == MANIFEST_FILE or p.suffix == ".jsonl"))
+    names = sorted(p.name for p in directory.iterdir() if p.is_file() and (p.name == MANIFEST_FILE or _is_tape_file(p.name)))
     return sha256_json([[name, sha256_file(directory / name)] for name in names])
 
 
@@ -202,11 +207,13 @@ class CassetteWriter:
     suite_sha256: str | None = None
     synthetic: bool = False
     description: str = ""
+    compress: bool = False
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     # Filled on first use (_open): the tape's file name, its rows by item id, whether the file
     # ends in an unterminated line, and a refusal to repeat.
     _file: str = field(default="", init=False, repr=False, compare=False)
     _index: dict[str, Recording] = field(default_factory=dict, init=False, repr=False, compare=False)
+    _buffer: bytearray = field(default_factory=bytearray, init=False, repr=False, compare=False)
     _newline_due: bool = field(default=False, init=False, repr=False, compare=False)
     _opened: bool = field(default=False, init=False, repr=False, compare=False)
     _refusal: str | None = field(default=None, init=False, repr=False, compare=False)
@@ -223,6 +230,8 @@ class CassetteWriter:
                 raise CassetteError(f"the writer's {name} must be a string or None")
         if not isinstance(self.synthetic, bool) or not isinstance(self.description, str):
             raise CassetteError("the writer's synthetic must be a bool and its description a string")
+        if not isinstance(self.compress, bool):
+            raise CassetteError("the writer's compress must be true or false")
         if not isinstance(self.settings, ModelSettings):
             raise CassetteError("the writer's settings must be a records.ModelSettings")
         try:
@@ -275,8 +284,12 @@ class CassetteWriter:
             if held is not None:
                 why = "for this very request" if held.request_sha256 == digest else "for another request: record into a new directory"
                 raise CassetteError(f"{display_path(path)} already holds item {request.item_id!r} {why}")
-            self.root.mkdir(parents=True, exist_ok=True)
-            _append(path, (("\n" if self._newline_due else "") + line + "\n").encode("utf-8"))
+            chunk = (("\n" if self._newline_due else "") + line + "\n").encode("utf-8")
+            if self.compress:
+                self._buffer.extend(chunk)
+            else:
+                self.root.mkdir(parents=True, exist_ok=True)
+                _append(path, chunk)
             self._newline_due = False
             self._index[request.item_id] = recording
 
@@ -287,13 +300,21 @@ class CassetteWriter:
             with _manifest_lock(self.root):
                 tapes: dict[str, Any] = {}
                 description = self.description
+                other_file = f"{self.feature}.jsonl" if self.compress else f"{self.feature}.jsonl.gz"
+                if (self.root / other_file).exists():
+                    raise CassetteError(
+                        f"{display_path(self.root / other_file)} already exists for feature {self.feature!r}; "
+                        "cannot mix .jsonl and .jsonl.gz in one directory"
+                    )
                 if (self.root / MANIFEST_FILE).exists():
                     manifest = _read_manifest(self.root)
                     self._check_fits(manifest, self._file)  # another writer may have closed meanwhile
                     tapes = {name: _tape_json(tape) for name, tape in manifest.features.items() if name != self.feature}
                     description = description or manifest.description
                 self.root.mkdir(parents=True, exist_ok=True)
-                if not (self.root / self._file).exists():
+                if self.compress:
+                    _write_bytes_atomic(self.root / self._file, gzip.compress(bytes(self._buffer), mtime=0))
+                elif not (self.root / self._file).exists():
                     _append(self.root / self._file, b"")  # a tape with no rows yet still has its file
                 tapes[self.feature] = {
                     "file": self._file,
@@ -322,15 +343,36 @@ class CassetteWriter:
             return
         if self._refusal is not None:
             raise CassetteError(self._refusal)
-        file = f"{self.feature}.jsonl"
+        file = f"{self.feature}.jsonl.gz" if self.compress else f"{self.feature}.jsonl"
+        other_file = f"{self.feature}.jsonl" if self.compress else f"{self.feature}.jsonl.gz"
         try:
             if (self.root / MANIFEST_FILE).exists():
                 manifest = _read_manifest(self.root)
                 tape = manifest.features.get(self.feature)
                 if tape is not None:
+                    if self.compress and not tape.file.endswith(".jsonl.gz"):
+                        raise CassetteError(
+                            f"{display_path(self.root / MANIFEST_FILE)} records {self.feature!r} in {tape.file!r}, "
+                            "not gzipped: record into a new directory"
+                        )
+                    if not self.compress and tape.file.endswith(".jsonl.gz"):
+                        raise CassetteError(
+                            f"{display_path(self.root / MANIFEST_FILE)} records {self.feature!r} in {tape.file!r} "
+                            "(gzipped): pass compress=True or record into a new directory"
+                        )
                     file = tape.file
                 self._check_fits(manifest, file)
-            index, newline_due = _read_for_resume(self.root / file)
+            if (self.root / other_file).exists():
+                raise CassetteError(
+                    f"{display_path(self.root / other_file)} already exists for feature {self.feature!r}; "
+                    "cannot mix .jsonl and .jsonl.gz in one directory"
+                )
+            if file.endswith(".jsonl.gz"):
+                index, raw_buf = _read_gzip_for_resume(self.root / file)
+                newline_due = bool(raw_buf) and not raw_buf.endswith(b"\n")
+                self._buffer = bytearray(raw_buf)
+            else:
+                index, newline_due = _read_for_resume(self.root / file)
         except CassetteError as exc:
             self._refusal = str(exc)
             raise
@@ -500,7 +542,7 @@ def _parse_tape(name: str, obj: Any) -> FeatureTape:
         raise _Invalid(f"{what} is a JSON {_json_type(obj)}, not an object")
     _require_keys(obj, _TAPE_REQUIRED, _TAPE_KEYS, what)
     if not _is_tape_file(obj["file"]):
-        raise _Invalid(f"{what}.file must name a *.jsonl file directly in the set's directory, not {obj['file']!r}")
+        raise _Invalid(f"{what}.file must name a *.jsonl or *.jsonl.gz file directly in the set's directory, not {obj['file']!r}")
     for key in ("prompt", "model"):
         if not _is_name(obj[key]):
             raise _Invalid(f"{what}.{key} must be a non-empty string")
@@ -542,14 +584,14 @@ def _parse_settings(obj: Any, what: str) -> ModelSettings:
 
 
 def _is_tape_file(name: Any) -> bool:
-    """A name fingerprint() covers: a *.jsonl file directly in the set's directory."""
-    return (
-        isinstance(name, str)
-        and name != MANIFEST_FILE
-        and not any(ch in name for ch in "/\\\x00")
-        and Path(name).name == name
-        and Path(name).suffix == ".jsonl"
-    )
+    """A name fingerprint() covers: a *.jsonl or *.jsonl.gz file directly in the set's directory."""
+    if not isinstance(name, str) or name == MANIFEST_FILE or any(ch in name for ch in "/\\\x00") or Path(name).name != name:
+        return False
+    if name.endswith(".jsonl"):
+        return len(name) > len(".jsonl")
+    if name.endswith(".jsonl.gz"):
+        return len(name) > len(".jsonl.gz")
+    return False
 
 
 def _settings_json(settings: ModelSettings) -> str:
@@ -632,6 +674,42 @@ def _parse_rows(data: bytes, where: str) -> dict[str, Recording]:
         recordings[recording.item_id] = recording
         first_seen[recording.item_id] = number
     return recordings
+
+
+def _decompress_tape(data: bytes, where: str) -> bytes:
+    if not data:
+        raise CassetteError(f"{where}: not valid gzip (empty file)")
+    try:
+        return gzip.decompress(data)
+    except (OSError, EOFError, zlib.error) as exc:
+        raise CassetteError(f"{where}: not valid gzip ({exc})") from None
+
+
+def _read_gzip_for_resume(path: Path) -> tuple[dict[str, Recording], bytes]:
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        return {}, b""
+    where = display_path(path)
+    raw = _decompress_tape(data, where)
+    return _parse_rows(raw, where), raw
+
+
+def _write_bytes_atomic(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _read_for_resume(path: Path) -> tuple[dict[str, Recording], bool]:

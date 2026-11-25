@@ -77,8 +77,14 @@ Z95 = 1.959963984540054
 Z80 = 0.8416212335729143
 DEFAULT_RESAMPLES = 2000
 DEFAULT_SEED = 0
+DEFAULT_ALPHA = 0.05
 #: The primary metric of each feature (the key in arm_metrics and the gate's `primary` gate).
-PRIMARY = {"bugfix": "resolved_rate", "judge": "balanced_accuracy"}
+PRIMARY = {
+    "bugfix": "resolved_rate",
+    "judge": "balanced_accuracy",
+    "review": "balanced_accuracy",
+    "patch": "usable_rate",
+}
 
 _T = TypeVar("_T")
 
@@ -413,24 +419,88 @@ def judge_metrics(results: Sequence[ItemResult], *, resamples: int = DEFAULT_RES
     return out
 
 
+def _review_rows(results: Sequence[ItemResult]) -> list[ItemResult]:
+    """Every review row carrying a boolean ground-truth label."""
+    return [row for row in results if row.label is not None]
+
+
+def _review_ba(rows: Sequence[ItemResult]) -> float | None:
+    labeled = _review_rows(rows)
+    return balanced_accuracy([bool(r.label) for r in labeled], [r.predicted for r in labeled])
+
+
+def review_metrics(results: Sequence[ItemResult], *, resamples: int = DEFAULT_RESAMPLES, seed: int = DEFAULT_SEED) -> dict[str, Any]:
+    """The review arm metrics (classifier metrics over all labeled items); "primary" repeats
+    balanced_accuracy."""
+    labeled = _review_rows(results)
+    out = classifier_metrics([bool(r.label) for r in labeled], [r.predicted for r in labeled])
+    ci = _ci_json(_interval(_resample(_clusters(labeled, lambda r: r.cluster), _review_ba, resamples=resamples, seed_key=f"{seed}/review/arm")))
+    out.update(
+        {
+            "balanced_accuracy_ci95": ci,
+            "vs_chance": None if ci is None else ci[0] > 0.5,
+            **_validity(results),
+            **_cost(results),
+            "primary": out["balanced_accuracy"],
+        }
+    )
+    return out
+
+
+def patch_metrics(results: Sequence[ItemResult]) -> dict[str, Any]:
+    """The patch arm metrics; "primary" repeats usable_rate."""
+    n = len(results)
+    usable = _count(results, lambda r: r.correct)
+    applied = _count(results, lambda r: isinstance(r.detail, dict) and r.detail.get("applied") is True)
+    noop = _count(results, lambda r: isinstance(r.detail, dict) and r.detail.get("noop") is True)
+    gold_match = _count(results, lambda r: isinstance(r.detail, dict) and r.detail.get("gold_match") is True)
+    block = Counter(rule for r in results for rule in set(r.sast_block))
+    flag = Counter(rule for r in results for rule in set(r.sast_flag))
+    by_tag: dict[str, dict[str, int]] = {}
+    for row in results:
+        for tag in _tags(row):
+            entry = by_tag.setdefault(tag, {"items": 0, "usable": 0})
+            entry["items"] += 1
+            entry["usable"] += int(bool(row.correct))
+    usable_rate = _r6(rate(usable, n))
+    return {
+        **_validity(results),
+        "usable": usable,
+        "usable_rate": usable_rate,
+        "usable_rate_ci95": _ci_json(wilson_interval(usable, n)),
+        "applied_rate": _r6(rate(applied, n)),
+        "noop_rate": _r6(rate(noop, n)),
+        "gold_match_rate": _r6(rate(gold_match, n)),
+        "sast": {"block": dict(sorted(block.items())), "flag": dict(sorted(flag.items()))},
+        **_cost(results),
+        "by_tag": dict(sorted(by_tag.items())),
+        "primary": usable_rate,
+    }
+
+
 def arm_metrics(feature: str, results: Sequence[ItemResult], *, resamples: int = DEFAULT_RESAMPLES, seed: int = DEFAULT_SEED) -> dict[str, Any]:
-    """bugfix_metrics or judge_metrics, with {"items": n, "primary_metric": PRIMARY[feature]}."""
+    """Per-arm metrics of `feature`, with {"items": n, "primary_metric": PRIMARY[feature]}."""
     if feature == "bugfix":
         body = bugfix_metrics(results)
     elif feature == "judge":
         body = judge_metrics(results, resamples=resamples, seed=seed)
+    elif feature == "review":
+        body = review_metrics(results, resamples=resamples, seed=seed)
+    elif feature == "patch":
+        body = patch_metrics(results)
     else:
         raise ValueError(f"unknown feature {feature!r}; known: {', '.join(sorted(PRIMARY))}")
     return {**body, "items": len(results), "primary_metric": PRIMARY[feature]}
 
 
 def primary_of(feature: str, results: Sequence[ItemResult]) -> float | None:
-    """The feature's primary metric on these rows (resolved rate, or balanced accuracy on the
-    paired tasks among them). Unrounded."""
-    if feature == "bugfix":
+    """The feature's primary metric on these rows (unrounded)."""
+    if feature in ("bugfix", "patch"):
         return rate(_count(results, lambda r: r.correct), len(results))
     if feature == "judge":
         return _judge_ba(results)
+    if feature == "review":
+        return _review_ba(results)
     raise ValueError(f"unknown feature {feature!r}; known: {', '.join(sorted(PRIMARY))}")
 
 
@@ -479,7 +549,7 @@ def compare(
     split: str,
     resamples: int = DEFAULT_RESAMPLES,
     seed: int = DEFAULT_SEED,
-    alpha: float = 0.05,
+    alpha: float = DEFAULT_ALPHA,
 ) -> Comparison:
     """The paired comparison described above. ValueError for an unknown feature, an item listed
     twice in one arm, or a joined item whose task, cluster or label differs between the arms
@@ -522,4 +592,35 @@ def compare(
         resamples=resamples,
         seed=seed,
         unpaired=sorted(cand.keys() ^ base.keys()),
+    )
+
+
+def both_valid_compare(
+    feature: str,
+    candidate: Sequence[ItemResult],
+    baseline: Sequence[ItemResult],
+    *,
+    split: str,
+    resamples: int = DEFAULT_RESAMPLES,
+    seed: int = DEFAULT_SEED,
+    alpha: float = DEFAULT_ALPHA,
+) -> Comparison:
+    """Paired comparison restricted to common items where both arms produced schema-valid replies."""
+    if feature not in PRIMARY:
+        raise ValueError(f"unknown feature {feature!r}; known: {', '.join(sorted(PRIMARY))}")
+    cand, base = _by_id(candidate, "candidate"), _by_id(baseline, "baseline")
+    common = sorted(cand.keys() & base.keys())
+    for item_id in common:
+        c, b = cand[item_id], base[item_id]
+        if (c.task_id, c.cluster, c.label) != (b.task_id, b.cluster, b.label):
+            raise ValueError(f"item {c.item_id}: the arms disagree on its task, cluster or label, so they were not scored on the same suite")
+    valid_ids = [i for i in common if cand[i].schema_valid and base[i].schema_valid]
+    return compare(
+        feature,
+        [cand[i] for i in valid_ids],
+        [base[i] for i in valid_ids],
+        split=split,
+        resamples=resamples,
+        seed=seed,
+        alpha=alpha,
     )

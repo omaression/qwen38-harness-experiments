@@ -526,7 +526,7 @@ def write_sets(out: Path, suite: Suite) -> dict[str, dict[str, dict[str, int]]]:
         root = out / arm.name
         root.mkdir(parents=True, exist_ok=True)
         counts[arm.name] = {}
-        for name in FEATURES:
+        for name in arm.prompts:
             feature = get_feature(name)
             template = prompts.get_template(arm.prompts[name], name)
             settings = feature.default_settings

@@ -426,6 +426,8 @@ def test_heldout_openings_count_distinct_candidates_per_split(ledger: Ledger) ->
     assert ledger.heldout_openings("1" * 64) == 2
     assert ledger.heldout_openings("2" * 64) == 1
     assert ledger.heldout_openings("3" * 64) == 0
+    assert ledger.has_candidate_opening("1" * 64, fingerprint(b)) is True
+    assert ledger.has_candidate_opening("1" * 64, fingerprint(d)) is False
     assert ledger.status()["openings"] == {"1" * 64: 2, "2" * 64: 1}
     assert ledger.current("bugfix") is None  # evaluations promote nothing
     report = gate_report("bugfix", b, None, split_sha256="1" * 64)

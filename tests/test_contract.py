@@ -10,10 +10,12 @@
 from __future__ import annotations
 
 import ast
+import gzip
 import importlib
 import json
 import re
 import sys
+import sysconfig
 from pathlib import Path
 
 import pytest
@@ -46,9 +48,28 @@ def _imported_roots(path: Path) -> set[str]:
     return roots
 
 
+def _stdlib_modules() -> set[str]:
+    if hasattr(sys, "stdlib_module_names"):
+        return set(sys.stdlib_module_names)
+    stdlib_dir = Path(sysconfig.get_paths()["stdlib"])
+    mods = set(sys.builtin_module_names)
+    for entry in stdlib_dir.iterdir():
+        if entry.name in ("site-packages", "dist-packages", "__pycache__"):
+            continue
+        if entry.is_dir():
+            mods.add(entry.name)
+        elif entry.suffix in (".py", ".so"):
+            mods.add(entry.name.split(".")[0])
+    dynload = stdlib_dir / "lib-dynload"
+    if dynload.is_dir():
+        for entry in dynload.iterdir():
+            mods.add(entry.name.split(".")[0])
+    return mods
+
+
 @pytest.mark.parametrize("path", sorted(PACKAGE.glob("*.py")), ids=lambda p: p.name)
 def test_package_uses_only_the_standard_library(path: Path) -> None:
-    allowed = set(sys.stdlib_module_names) | {"__future__", "llm_eval_harness"}
+    allowed = _stdlib_modules() | {"__future__", "llm_eval_harness"}
     foreign = _imported_roots(path) - allowed
     assert not foreign, f"{path.name} imports {sorted(foreign)}: the harness is standard library only"
 
@@ -322,11 +343,12 @@ def test_cassette_fingerprint(tmp_path: Path) -> None:
 # ---- public safety ----------------------------------------------------------------------------
 
 SKIP_DIRS = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", "build", "dist", "reports", "artifacts"}
-TEXT_SUFFIXES = {".py", ".md", ".toml", ".yml", ".yaml", ".json", ".jsonl", ".txt", ".cfg", ".ini", ".sh", ""}
+TEXT_SUFFIXES = {".py", ".md", ".toml", ".yml", ".yaml", ".json", ".jsonl", ".txt", ".cfg", ".ini", ".sh", ".tex", ".bib", ""}
 FORBIDDEN = {
     "a home-directory path": re.compile(r"(?i)/(?:users|home)/[a-z0-9_.-]+/"),
-    "an e-mail address": re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"),
+    "an e-mail address": re.compile(r"(?<![\\A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"),
     "an API key": re.compile(r"\b(?:sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{20,}|hf_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})"),
+    "an HPC project/host identifier": re.compile(r"(?i)\b[p]js0401\b|osc[.]edu"),
 }
 
 
@@ -341,10 +363,26 @@ def _text_files() -> list[Path]:
     return out
 
 
+def _gzip_jsonl_files() -> list[Path]:
+    out = []
+    for path in ROOT.rglob("*.jsonl.gz"):
+        rel = path.relative_to(ROOT)
+        if any(part in SKIP_DIRS or part.endswith(".egg-info") for part in rel.parts):
+            continue
+        if path.is_file():
+            out.append(path)
+    return out
+
+
 def test_no_private_paths_addresses_or_keys_in_the_tree() -> None:
     found = []
     for path in _text_files():
         text = path.read_text(encoding="utf-8", errors="replace")
+        for what, pattern in FORBIDDEN.items():
+            for match in pattern.finditer(text):
+                found.append(f"{path.relative_to(ROOT)}: {what}: {match.group(0)[:40]}")
+    for path in _gzip_jsonl_files():
+        text = gzip.decompress(path.read_bytes()).decode("utf-8", errors="replace")
         for what, pattern in FORBIDDEN.items():
             for match in pattern.finditer(text):
                 found.append(f"{path.relative_to(ROOT)}: {what}: {match.group(0)[:40]}")

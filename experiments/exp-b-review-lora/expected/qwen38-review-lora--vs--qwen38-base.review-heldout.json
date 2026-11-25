@@ -1,0 +1,300 @@
+{
+  "baseline": {
+    "fingerprint": "532fdcdb3a1985101e638ab0605cd276e3c87fa54dc07543df95484f10c9b9ea",
+    "metrics": {
+      "accuracy": 0.52459,
+      "approve_rate": 0.47541,
+      "balanced_accuracy": 0.528556,
+      "balanced_accuracy_ci95": [
+        0.452448,
+        0.605739
+      ],
+      "completion_tokens_mean": 7219.163934,
+      "completion_tokens_total": 1321107,
+      "confusion": {
+        "fn": 16,
+        "fp": 34,
+        "invalid_neg": 19,
+        "invalid_pos": 18,
+        "tn": 43,
+        "tp": 53
+      },
+      "f1": 0.609195,
+      "finish_reasons": {
+        "length": 26,
+        "stop": 157
+      },
+      "items": 183,
+      "latency_median_s": 232.54,
+      "lenient_only_rate": 0.0,
+      "negatives": 96,
+      "positives": 87,
+      "precision": 0.609195,
+      "primary": 0.528556,
+      "primary_metric": "balanced_accuracy",
+      "schema_validity": 0.797814,
+      "schema_validity_ci95": [
+        0.733778,
+        0.849605
+      ],
+      "think_validity": 0.076503,
+      "tnr": 0.447917,
+      "tnr_ci95": [
+        0.352358,
+        0.547484
+      ],
+      "tpr": 0.609195,
+      "tpr_ci95": [
+        0.504134,
+        0.705022
+      ],
+      "vs_chance": false
+    },
+    "model": "qwen38",
+    "name": "qwen38-base",
+    "notes": [],
+    "prompt": "review/v1",
+    "prompt_sha256": "e460731827ffd4910378cb3b044f1f0c86b784f6a8048b76e6021c53fe008076",
+    "recorded_suite_sha256": "ecc455a5f7c2ac83018dd8ae3e4b70f0129946879df5df58267dbc595375ec37",
+    "source": "experiments/exp-b-review-lora/qwen38-base",
+    "synthetic": false
+  },
+  "candidate": {
+    "fingerprint": "c8f9116745b43fc538daa08cc5195c98f3d9a9b90f3606e9933acb3937a5a558",
+    "metrics": {
+      "accuracy": 0.704918,
+      "approve_rate": 0.497268,
+      "balanced_accuracy": 0.70528,
+      "balanced_accuracy_ci95": [
+        0.628038,
+        0.782211
+      ],
+      "completion_tokens_mean": 1403.387978,
+      "completion_tokens_total": 256820,
+      "confusion": {
+        "fn": 25,
+        "fp": 29,
+        "invalid_neg": 0,
+        "invalid_pos": 0,
+        "tn": 67,
+        "tp": 62
+      },
+      "f1": 0.696629,
+      "finish_reasons": {
+        "stop": 183
+      },
+      "items": 183,
+      "latency_median_s": 75.87,
+      "lenient_only_rate": 0.0,
+      "negatives": 96,
+      "positives": 87,
+      "precision": 0.681319,
+      "primary": 0.70528,
+      "primary_metric": "balanced_accuracy",
+      "schema_validity": 1.0,
+      "schema_validity_ci95": [
+        0.97944,
+        1.0
+      ],
+      "think_validity": 0.994536,
+      "tnr": 0.697917,
+      "tnr_ci95": [
+        0.599915,
+        0.780688
+      ],
+      "tpr": 0.712644,
+      "tpr_ci95": [
+        0.61016,
+        0.797143
+      ],
+      "vs_chance": true
+    },
+    "model": "public-v2-review",
+    "name": "qwen38-review-lora",
+    "notes": [],
+    "prompt": "review/v1",
+    "prompt_sha256": "e460731827ffd4910378cb3b044f1f0c86b784f6a8048b76e6021c53fe008076",
+    "recorded_suite_sha256": "ecc455a5f7c2ac83018dd8ae3e4b70f0129946879df5df58267dbc595375ec37",
+    "source": "experiments/exp-b-review-lora/qwen38-review-lora",
+    "synthetic": false
+  },
+  "comparison": {
+    "alpha": 0.05,
+    "baseline": 0.528556,
+    "candidate": 0.70528,
+    "ci95": [
+      0.108769,
+      0.248761
+    ],
+    "clusters": 143,
+    "delta": 0.176724,
+    "feature": "review",
+    "gains": 42,
+    "losses": 9,
+    "mcnemar_p": 3.3888279489246997e-06,
+    "mde80": 0.099667,
+    "metric": "balanced_accuracy",
+    "min_significant_losses": 6,
+    "n": 183,
+    "resamples": 2000,
+    "se": 0.035575,
+    "seed": 0,
+    "unpaired": []
+  },
+  "config": {
+    "alpha": 0.05,
+    "floor": null,
+    "margin": 0.0,
+    "max_new_sast": 0,
+    "require_gain": false,
+    "schema_min": 0.95,
+    "think_min": 0.9,
+    "tie": "pass"
+  },
+  "feature": "review",
+  "gates": [
+    {
+      "bound": 0.95,
+      "enforced": true,
+      "gate": "schema_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 1.0
+    },
+    {
+      "bound": 0.9,
+      "enforced": true,
+      "gate": "think_validity",
+      "op": ">=",
+      "passed": true,
+      "value": 0.994536
+    },
+    {
+      "applicable": false,
+      "bound": 0,
+      "enforced": false,
+      "gate": "new_sast_violations",
+      "op": "<=",
+      "passed": true,
+      "reason": "review replies hold no code to scan",
+      "value": null
+    },
+    {
+      "at_bound": false,
+      "baseline": 0.528556,
+      "bound": 0.0,
+      "bound_source": "baseline",
+      "candidate": 0.70528,
+      "compares": "delta = candidate - baseline",
+      "enforced": true,
+      "gate": "primary",
+      "margin": 0.0,
+      "metric": "balanced_accuracy",
+      "op": ">=",
+      "passed": true,
+      "tie": "pass",
+      "value": 0.176724
+    },
+    {
+      "applicable": true,
+      "bound": 0.05,
+      "condition": "losses > gains and mcnemar_p < alpha",
+      "enforced": true,
+      "gains": 42,
+      "gate": "regression_test",
+      "losses": 9,
+      "op": "not",
+      "passed": true,
+      "test": "exact two-sided McNemar on the discordant items",
+      "value": 3.3888279489246997e-06
+    }
+  ],
+  "gates_passed": true,
+  "promote": true,
+  "provenance": {
+    "exec_rule": "values/1",
+    "harness_version": "0.1.0",
+    "prompt_current": "review/v1",
+    "sast": {
+      "fingerprint": "c8d57f61ce8532471b51e5ebe3be7de606ffd1d67c7bac195cc72be33e39b960",
+      "rules": [
+        {
+          "cwe": "CWE-95",
+          "id": "eval-exec",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "os-command",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "shell-true",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-502",
+          "id": "unsafe-deserialization",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "process-control",
+          "severity": "block"
+        },
+        {
+          "cwe": null,
+          "id": "interpreter-tamper",
+          "severity": "block"
+        },
+        {
+          "cwe": "CWE-78",
+          "id": "subprocess",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-470",
+          "id": "dynamic-import",
+          "severity": "flag"
+        },
+        {
+          "cwe": "CWE-73",
+          "id": "file-write",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "network",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "introspection",
+          "severity": "flag"
+        },
+        {
+          "cwe": null,
+          "id": "exit-call",
+          "severity": "flag"
+        }
+      ],
+      "ruleset": "sast/1"
+    }
+  },
+  "rule": "noninferior/1",
+  "schema": "llm_eval_harness.report/1",
+  "split": "heldout",
+  "suite": {
+    "heldout_pct": 50,
+    "items": 183,
+    "name": "swe_review_bench",
+    "sha256": "ecc455a5f7c2ac83018dd8ae3e4b70f0129946879df5df58267dbc595375ec37",
+    "split_sha256": "7cda3ddd8d39052407b1c32562c01a3b753f4eb7598f907bec535e13b2d92bd8",
+    "synthetic": false,
+    "tasks": 183
+  },
+  "warnings": [
+    "The baseline reviewer's balanced accuracy 0.529 has a 95% interval [0.452, 0.606] that includes 0.5: it is not distinguishable from chance."
+  ]
+}

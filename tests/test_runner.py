@@ -448,3 +448,84 @@ def test_record_refuses_a_template_of_another_feature(suite: Suite) -> None:
     with pytest.raises(RefusedError, match="judge/v2 belongs to judge"):
         runner.record_arm("bugfix", suite, ALL, FakeClient(), "x", arm="a", model="m", template=prompts.get_template("judge/v2"), settings=ModelSettings())
     assert RecordSummary("a", "judge", DEV, "x", "judge/v2", "m").to_json()["failures"] == []
+
+
+def test_heldout_budget_warns_on_the_tenth_distinct_candidate(suite: Suite) -> None:
+    base = write_arm("cassettes/budget-base", suite, "judge", good, arm="budget-base")
+    path = Path("ledger/budget.jsonl")
+    split_sha = tasks.split_sha256(suite, HELDOUT)
+    for k in range(9):
+        cand_k = write_arm(
+            f"cassettes/budget-cand-{k}",
+            suite,
+            "judge",
+            lambda item, k=k: verdict(bool(item.label)) if k % 2 == 0 else ChatResponse(content=json.dumps({"verdict": bool(item.label), "reason": f"run {k}"}), finish_reason="stop"),
+            arm=f"cand-{k}",
+        )
+        rep = runner.gate_run(
+            "judge",
+            suite,
+            HELDOUT,
+            cand_k,
+            base,
+            GateConfig(),
+            resamples=50,
+            ledger=Ledger.open(path),
+            record_evaluation=True,
+        )
+        assert not any("distinct candidates" in w for w in rep["warnings"]), (k, rep["warnings"])
+    assert Ledger.open(path).heldout_openings(split_sha) == 9
+
+    # Re-evaluating an already-recorded candidate stays at 9 (no false warning).
+    cand_0 = Path("cassettes/budget-cand-0")
+    repeat_rep = runner.gate_run(
+        "judge", suite, HELDOUT, cand_0, base, GateConfig(), resamples=50, ledger=Ledger.open(path), record_evaluation=True
+    )
+    assert not any("distinct candidates" in w for w in repeat_rep["warnings"])
+    assert Ledger.open(path).heldout_openings(split_sha) == 9
+
+    # The 10th distinct candidate triggers the budget warning IN its own report!
+    cand_9 = write_arm(
+        "cassettes/budget-cand-9",
+        suite,
+        "judge",
+        lambda item: ChatResponse(content=json.dumps({"verdict": bool(item.label), "reason": "tenth"}), finish_reason="stop"),
+        arm="cand-9",
+    )
+    tenth_rep = runner.gate_run(
+        "judge", suite, HELDOUT, cand_9, base, GateConfig(), resamples=50, ledger=Ledger.open(path), record_evaluation=True
+    )
+    assert any("10 distinct candidates (budget 10)" in w for w in tenth_rep["warnings"]), tenth_rep["warnings"]
+    assert Ledger.open(path).heldout_openings(split_sha) == 10
+
+
+def test_gzipped_suite_and_cassettes_gate_end_to_end(tmp_path: Path) -> None:
+    import gzip
+
+    suite_dir = tmp_path / "pat-gz"
+    suite_dir.mkdir()
+    task = {
+        "id": "pat-1",
+        "user_prompt": "Return x + 1 in app.py",
+        "files": {"app.py": "def f(x):\n    return x\n"},
+        "gold_files": {"app.py": "def f(x):\n    return x + 1\n"},
+    }
+    manifest = {"schema": tasks.SUITE_SCHEMA, "name": "pat-gz", "version": 1, "heldout_pct": 100, "kind": "patch"}
+    (suite_dir / "suite.json").write_text(json.dumps(manifest) + "\n", encoding="utf-8")
+    (suite_dir / "tasks.jsonl.gz").write_bytes(gzip.compress((json.dumps(task) + "\n").encode("utf-8"), mtime=0))
+
+    suite_obj = tasks.load_suite(suite_dir)
+    template = prompts.current_template("patch")
+    settings = FEATURES["patch"].default_settings
+    item = FEATURES["patch"].items(suite_obj, HELDOUT)[0]
+    req = prompts.build_request(template, item, MODEL, settings)
+    diff = "--- a/app.py\n+++ b/app.py\n@@ -1,2 +1,2 @@\n def f(x):\n-    return x\n+    return x + 1\n"
+
+    cand_dir = tmp_path / "pat-cand"
+    w = CassetteWriter(cand_dir, arm="pat-cand", feature="patch", prompt=template.id, model=MODEL, settings=settings,
+                       suite_name=suite_obj.name, suite_sha256=suite_obj.sha256, compress=True)
+    w.write(req, ChatResponse(content=json.dumps({"explanation": "Add 1.", "unified_diff": diff}), finish_reason="stop"))
+    w.close()
+
+    report = runner.gate_run("patch", suite_obj, HELDOUT, cand_dir, None, GateConfig(), resamples=50)
+    assert report["promote"] is True and report["candidate"]["metrics"]["usable_rate"] == 1.0

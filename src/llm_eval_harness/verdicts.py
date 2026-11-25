@@ -120,6 +120,10 @@ class JsonSchema:
 BUGFIX_SCHEMA = JsonSchema("bugfix/1", {"explanation": str, "patched_code": str}, {}, frozenset({"explanation", "patched_code"}))
 #: The judge's answer.
 JUDGE_SCHEMA = JsonSchema("judge/1", {"verdict": bool}, {"reason": str}, frozenset())
+#: The code reviewer's answer.
+REVIEW_SCHEMA = JsonSchema("review/1", {"passed": bool, "defect_severity": str, "line_comments": list}, {}, frozenset({"defect_severity"}))
+#: The repository patcher's answer.
+PATCH_SCHEMA = JsonSchema("patch/1", {"explanation": str, "unified_diff": str}, {}, frozenset({"explanation", "unified_diff"}))
 
 
 @dataclass

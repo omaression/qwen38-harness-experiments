@@ -146,7 +146,7 @@ def test_triggers_and_dispatch_inputs() -> None:
     dispatch = _entry(LINES, "on", 0)
     inputs = _entry(_entry(dispatch, "workflow_dispatch", 2), "inputs", 4)
     feature, split = "\n".join(_entry(inputs, "feature", 6)), "\n".join(_entry(inputs, "split", 6))
-    assert "type: choice" in feature and "options: [bugfix, judge]" in feature
+    assert "type: choice" in feature and "options: [bugfix, judge, review, patch]" in feature
     assert "type: choice" in split and "options: [dev, heldout]" in split
     assert "default: dev" in split, "a live experiment must not spend the held-out split by default"
 
@@ -193,7 +193,16 @@ def test_the_python_matrix_is_quoted() -> None:
 
 def test_the_tests_job() -> None:
     scripts = [step["run"].strip() if "run" in step else "" for step in steps("tests")]
-    for command in ("python -m pip install -e '.[test]'", "python -m pytest -q", "llm-eval tasks validate --suite tasks/demo", "llm-eval ledger verify"):
+    for command in (
+        "python -m pip install -e '.[test]'",
+        "python -m pytest -q",
+        "llm-eval tasks validate --suite tasks/demo",
+        "llm-eval tasks validate --suite tasks/humanevalfix",
+        "llm-eval tasks validate --suite tasks/swe_review_bench",
+        "llm-eval tasks validate --suite tasks/swe_coder_effort",
+        "python scripts/make_report_tables.py --check",
+        "llm-eval ledger verify",
+    ):
         assert command in scripts, command
 
 
@@ -442,6 +451,7 @@ def test_the_experiments_job_reads_names_and_suites() -> None:
     assert "for exp in experiments/*/; do" in script and 'for report in "$exp"expected/*.json; do' in script
     assert "suite=demo" in script and '"${exp}SUITE"' in script and '--suite "tasks/$suite"' in script
     assert "*--vs--*.*)" in script and "candidate=qwen38-adapters; baseline=qwen38-base" in script
+    assert "split=${run##*-}; feature=${run%-*}" in script
     assert '--candidate "${exp}${candidate}" --baseline "${exp}${baseline}"' in script
     assert 'cmp -s "$out" "$report"' in script and "::error title=Experiment drift::" in script
     assert "| head -40 || true" in script, "a difference must not end the loop before the other reports are checked"

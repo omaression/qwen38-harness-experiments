@@ -1,0 +1,26 @@
+{
+  "arm": "qwen38-base",
+  "description": "SWE-Review-Bench cassette for qwen38-base",
+  "features": {
+    "review": {
+      "file": "review.jsonl.gz",
+      "items": 400,
+      "model": "qwen38",
+      "prompt": "review/v1",
+      "settings": {
+        "extra": {
+          "presence_penalty": 0.0,
+          "top_k": 20,
+          "top_p": 0.95
+        },
+        "max_tokens": 16384,
+        "seed": null,
+        "temperature": 0.0
+      },
+      "suite": "swe_review_bench",
+      "suite_sha256": "ecc455a5f7c2ac83018dd8ae3e4b70f0129946879df5df58267dbc595375ec37"
+    }
+  },
+  "schema": "llm_eval_harness.cassettes/1",
+  "synthetic": false
+}

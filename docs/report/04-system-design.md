@@ -1,122 +1,116 @@
 # III. System Design
 
-The harness is a Python package (`src/llm_eval_harness/`, standard library only, Python 3.10 or later) with a command-line interface, `llm-eval`. Its full specification is `docs/DESIGN.md`; the module docstrings state the same contracts in more detail. This section summarises the design decisions on which the experiments depend.
+The harness is a pure standard-library Python package (`src/llm_eval_harness/`, targeting Python 3.10+ with test compatibility verified back to Python 3.9) exposed via the `llm-eval` CLI. Its normative specification lives in `docs/DESIGN.md`. Fig. 1 (`docs/paper/figures/fig-architecture.pdf`) illustrates the offline replay and promotion pipeline.
 
 ## A. Architecture and data flow
 
-An evaluation proceeds through the following stages, each owned by one module:
+An evaluation executes eight deterministic stages:
 
-1. **Suite.** `tasks.load_suite` reads a suite directory (`suite.json`, `tasks.jsonl`) and `tasks.split_of` assigns every task to the development (dev) or held-out split. `validation.validate_suite` checks the suite before anything is scored on it.
-2. **Items.** A feature (`features.py`) turns the tasks of one split into items: `bugfix:<task>` for the bug-fix feature, and `judge:<task>:reference` and `judge:<task>:wrong` for the judge.
-3. **Requests.** `prompts.build_request` renders a versioned template for an item into a chat request. Its SHA-256, computed over the canonical JSON of exactly the body that the live client sends, identifies the request.
-4. **Replies.** A live OpenAI-compatible client (`clients.OpenAICompatClient`, built on `urllib`) answers requests; a recording client stores each reply in a cassette; a replay client (`clients.ReplayClient`) answers from the cassette and refuses a recording whose request hash differs from the rebuilt request.
+1. **Suite.** `tasks.load_suite` loads `suite.json` (with `kind` $\in \{\text{function}, \text{review}, \text{patch}\}$) and either plain `tasks.jsonl` or deterministic gzip `tasks.jsonl.gz` (directories containing both are refused). `tasks.split_of` assigns tasks to `dev` or `heldout`; `validation.validate_suite` checks structure, reference behavior, SAST cleanliness, and prompt non-leakage.
+2. **Items.** A feature (`features.py`) constructs split items: `bugfix:<task>` or `patch:<task>` on `function`/`patch` suites, symmetric `judge:<task>:reference`/`:wrong` pairs on `function` suites, and `review:<task>` (or `review:<task>:reference`/`:wrong` on `function` suites) for `review`.
+3. **Requests.** `prompts.build_request` renders an immutable template into a `ChatRequest`; the SHA-256 over the canonical JSON of the exact HTTP body identifies the request.
+4. **Replies.** `clients.OpenAICompatClient` queries live endpoints during recording; `CassetteWriter` writes `<feature>.jsonl` or deterministic `<feature>.jsonl.gz` (`gzip.compress(..., mtime=0)`); `ReplayClient` replays cassettes and refuses any row whose recorded `request_sha256` mismatches the rebuilt payload. Mixing plain and gzipped tapes for the same feature is refused.
 5. **Scoring.** The feature scores each reply (Section III-C) into an `ItemResult`.
-6. **Metrics and comparison.** `metrics.arm_metrics` aggregates one arm; `metrics.compare` joins two arms on item identifiers.
-7. **Decision.** `gate.decide` applies the gate rule (Section III-G) and produces a JSON report, the only output written to standard output.
-8. **Record keeping.** `ledger.py` appends evaluation, promotion and rollback rows to a hash-chained ledger.
+6. **Metrics and comparison.** `metrics.arm_metrics` aggregates per-arm rates and CIs; `metrics.compare` joins candidate and baseline on item identifiers, while `metrics.both_valid_compare` provides a post-hoc diagnostic restricted to mutually schema-valid pairs.
+7. **Decision.** `gate.decide` applies rule `noninferior/1` (Section III-G) and prints one canonical JSON report on `stdout`.
+8. **Record keeping.** `ledger.py` maintains a hash-chained `ledger.jsonl` recording promotions, rollbacks, and held-out evaluations.
 
-Only the shared records in `records.py` cross module boundaries, and `metrics` and `gate` depend on nothing but those records. `tests/test_contract.py` fails if a module imports anything outside the standard library.
+Only typed immutable records in `records.py` cross module boundaries; `metrics` and `gate` depend solely on those records, and `tests/test_contract.py` enforces zero third-party dependencies.
 
-## B. The features under test
+## B. The four features under test
 
-**Bug fix.** The model receives a buggy Python function with its docstring and one test that fails on it, rendered as a single assertion. It must answer with an optional thinking block followed by exactly one JSON object with the keys `explanation` and `patched_code`. A product would apply `patched_code` directly, so the harness scores exactly that. The model never sees the task's hidden tests, its reference fix or its wrong fix. Templates are versioned (`bugfix/v1`, `bugfix/v2`) and never change once published; their SHA-256 values are pinned by `tests/test_prompts.py`.
+**Bug fix (`bugfix`).** On `function` suites, the model receives a buggy Python function, its docstring, and one failing assertion (`bugfix/v1`, `bugfix/v2`, templates SHA-256-pinned in `tests/test_prompts.py`). It replies with `{"explanation", "patched_code"}`. Only `patched_code` is executed; hidden tests, reference code, and wrong code are withheld. An item is *resolved* (`resolved_rate`, default floor 0.5) when schema-valid, free of added block SAST findings, and passing all shown and hidden tests.
 
-**Judge.** The model receives a task and a proposed patch and answers `{"verdict": true}` or `{"verdict": false}`. Each task yields two items: its reference fix (label true) and a plausible wrong fix that passes the shown test and fails at least one hidden test (label false). Labels therefore come from execution, never from another model. Because every task contributes one item of each class, a judge that decides from the task alone, without reading the patch, scores exactly 0.5 balanced accuracy.
+**Judge (`judge`).** On `function` suites, each task yields two paired items: the reference fix (label `true`) and a plausible overfit fix passing the shown test while failing a hidden one (label `false`). The model returns `{"verdict": true | false}`. Any schema-invalid reply counts wrong in its class, so a label-blind baseline scores exactly 0.5 balanced accuracy (default floor 0.7).
 
-## C. Scoring a reply
+**Review (`review`).** Supporting both real-repository `review` suites (e.g., `swe_review_bench`) and `function` suites (rendered via unified diff and numbered source context), template `review/v1` asks for `{"passed", "defect_severity", "line_comments"}`, requiring `defect_severity` $\in \{\text{none}, \text{low}, \text{medium}, \text{high}, \text{critical}\}$ and `line_comments` as JSON objects. Its prediction is `passed`; primary metric is balanced accuracy (default floor 0.65), scored against execution-derived PR resolution labels without running code or SAST.
 
-A bug-fix reply is checked in a fixed order, and each check is recorded in the item's result:
+**Patch (`patch`).** Supporting `patch` suites (e.g., `swe_coder_effort`) and `function` suites, template `patch/v1` elicits `{"explanation", "unified_diff"}` against shown repository files. Scored purely deterministically in Python via `diff_apply.apply_unified_diff`, an item is *usable* (`usable_rate`, default floor 0.7) when the reply is strictly schema-valid, the diff applies cleanly with non-empty file changes (`not noop`), all modified or created `.py`/`.pyi` files whose originals parsed still parse via `ast.parse`, and zero block-class SAST findings are added. Auxiliary metrics record `applied_rate`, `noop_rate`, and `gold_match_rate` (exact text or Python AST equality against `gold_files`).
 
-1. **Thinking.** Thinking may arrive in a separate field of the server's response or as a `<think>` block at the start of the content. It is valid when it is closed (an answer follows it), lies within the feature's word limits (1 to 1,200 words for both features), and appears in only one place; it is optional for both features.
-2. **Schema.** A reply that ended at the token limit (`finish_reason` "length") is invalid. Otherwise the text after the thinking must be exactly one JSON object with exactly the required keys, of the required types, and non-blank strings: no surrounding prose, code fence, duplicate key or trailing text. A lenient parse that strips a fence or extracts the outermost braces is recorded as a diagnostic only and never makes a reply valid.
-3. **Static scan.** The patch is scanned (Section III-D) and the findings it added relative to the buggy code are recorded.
-4. **Execution.** Only a schema-valid patch without an added block-class finding is executed, against the shown test and then the hidden tests (Section III-E).
+## C. Reply validation and diff application
 
-An item is *resolved* when its reply is schema-valid, adds no block-class finding, and passes every shown and hidden test. An item whose shown test passed and a hidden test failed is an *overfit*. A judge reply's prediction is the verdict of a schema-valid reply; a reply without a valid verdict is wrong for either label, and no code runs.
+Every reply passes through ordered, independent checks:
 
-## D. Static analysis
+1. **Thinking (`verdicts.check_think`).** Thinking arrives either in the API `reasoning` field or as a leading `<think>...</think>` block (or closing `</think>` when the chat template supplies the opening tag). Let `present` denote non-blank extracted thinking, `closed` denote non-blank trailing answer text following thinking, `words` count whitespace-separated tokens, and `in_range` denote $w_{\min} \le \text{words} \le w_{\max}$ (1 to 1,200 words for all four features). With `problems` flagging malformed tags (thinking in both places, multiple blocks, or a late `<think>`), validity is defined as
 
-`sast.scan` parses the patch and resolves imports, aliases, simple assignments and `getattr(module, "name")`, so that `from os import system as run; run(cmd)` is found; when the code does not parse, the block-class rules run as regular expressions on the raw text. A finding belongs to the patch when the buggy code did not already contain it (a multiset difference on rule and snippet). Six block-class rules make an item unresolved and prevent its code from running; six flag-class rules are counted and decide nothing.
+$$\text{valid} = \neg\text{problems} \land \big((\text{present} \land \text{closed} \land \text{in\_range}) \lor (\neg\text{present} \land \neg\text{required})\big).$$
 
-*Table: The block-class static-analysis rules (`src/llm_eval_harness/sast.py`). Flag-class rules (subprocess, dynamic import, file writes, network, introspection, `sys.exit`) are reported but decide nothing.*
+All four features currently set `required = False`, so omitting thinking is valid when tag-clean, whereas unclosed thinking or reasoning outside $[1, 1{,}200]$ words fails.
+2. **Schema (`verdicts.check_schema`).** Any reply with `finish_reason == "length"` is immediately invalid. Otherwise, trailing answer text must parse as one strict JSON object matching required keys, exact Python types (`type(v) is bool`), non-blank required strings, no duplicate keys, and no `NaN`/`Infinity`. A lenient parse (stripping one code fence or outermost braces) is recorded solely for diagnostics (`lenient_only_rate`) and SAST accountability.
+3. **Pure-Python `--recount` diff application (`diff_apply`).** For `patch`, `apply_unified_diff` parses `diff --git` and `---`/`+++` headers safely in memory without external binaries, refusing path traversal (`..`), leading slashes, backslashes, `.git` segments, binary diffs, and symlink/submodule file modes (`120000`, `160000`). Because LLMs frequently miscompute `@@` hunk line counts, the parser implements `git apply --recount` hunk-boundary detection, matching context exact-first, then unique $\pm 50$-line offset fuzz, stripped trailing-whitespace matching, and unique whole-file fallback.
+4. **Static scan and sandbox execution.** Code-producing features (`bugfix`, `patch`) scan added constructs (Section III-D); `bugfix` then executes clean, schema-valid patches in the sandbox (Section III-E).
 
-| Rule | CWE | Matches |
-|---|---|---|
-| `eval-exec` | CWE-95 | calls of the built-in `eval` or `exec` |
-| `os-command` | CWE-78 | `os.system`, `os.popen`, `os.exec*`, `os.spawn*`, `pty.spawn` |
-| `shell-true` | CWE-78 | any call with `shell=True` |
-| `unsafe-deserialization` | CWE-502 | `pickle`, `marshal` or `dill` loads, `shelve.open`, unsafe `yaml.load` |
-| `process-control` | | `os._exit`, `os.kill`, `atexit.register`, `signal.signal`, `signal.alarm` |
-| `interpreter-tamper` | | `sys.settrace`, `sys.setprofile`, writes into `sys.modules` or `builtins` |
+## D. Static analysis (`sast/1`)
 
-A block-class rule is admitted only if it never fires on a correct fix: suite validation checks every reference solution against it.
+`sast.scan` parses Python via `ast.parse`, tracking scopes, import aliases, global/nonlocal rebinding, chained assignments, subscripting into `sys.modules`/`builtins`, and `getattr(module, "name")` resolution (e.g., catching `from os import system as run; run(cmd)`); unparseable code falls back to raw-text regex matching over block rules. Added findings (`added_findings`) take the multiset difference by `(rule, snippet)` against the original buggy or base file. Six block-class rules block execution/usability and count against the gate; six flag-class rules are logged without blocking. Suite validation guarantees no block-class rule fires on valid reference solutions. The table below documents all twelve rules directly verified against `src/llm_eval_harness/sast.py`.
+
+*Table: Complete 12-rule specification of `sast/1` (`src/llm_eval_harness/sast.py`). Block rules fail `bugfix`/`patch` items and gate promotion; flag rules are diagnostic.*
+
+| Rule | Severity | CWE | Matched constructs |
+|---|---|---|---|
+| `eval-exec` | block | CWE-95 | built-in `eval`, `exec` calls or values |
+| `os-command` | block | CWE-78 | `os.system`, `os.popen`, `os.exec*`, `os.spawn*`, `os.posix_spawn*`, `pty.spawn` |
+| `shell-true` | block | CWE-78 | any call passing `shell=True` |
+| `unsafe-deserialization` | block | CWE-502 | `pickle`, `cPickle`, `_pickle`, `dill`, `marshal` `.load(s)`, `shelve.open`, unsafe `yaml.load(_all)` |
+| `process-control` | block | — | `os._exit`, `os.kill`, `os.killpg`, `atexit.register`, `signal.signal`, `signal.alarm` |
+| `interpreter-tamper` | block | — | `sys.settrace`, `sys.setprofile`, `threading.settrace`, `threading.setprofile`, writes into `sys.modules` or `builtins` |
+| `subprocess` | flag | CWE-78 | any other `subprocess.*` call |
+| `dynamic-import` | flag | CWE-470 | `__import__`, `importlib.import_module`, `importlib.__import__` |
+| `file-write` | flag | CWE-73 | write/append `open`/`io.open`, `Path.write_*`, `os.remove`, `os.unlink`, `os.rmdir`, `os.rename`, `os.replace`, `shutil.rmtree`, `shutil.move` |
+| `network` | flag | — | imports of `socket`, `ssl`, `urllib.request`, `http.client`, `ftplib`, `smtplib`, `telnetlib`, `requests`, `httpx` |
+| `introspection` | flag | — | `sys._getframe`, `inspect.currentframe`, `inspect.stack`, `inspect.getouterframes`, `gc.get_objects`, `gc.get_referrers` |
+| `exit-call` | flag | — | `sys.exit`, `exit`, `quit` |
 
 ## E. Execution and the sandbox
 
-Tests are stored as data: a call expression and either the Python literal it must return, optionally with a numeric tolerance, or the exception class it must raise. The child process that runs model-written code receives only the call expressions and reports, per call, the `repr` of the returned value or the class names of the raised exception. The parent process decides the outcome (execution rule `values/1`). A test passes only when its record exists, is the only record for its index, and matches the expectation; a missing record is a failure, so an early `os._exit`, a crash or a skipped call cannot pass, and an exit status of 0 is never a pass by itself. If the sandbox itself cannot start, the evaluation stops with an infrastructure error instead of scoring the item as failed.
+In `bugfix`, tests are stored as data: a call expression paired with either an expected Python literal (with optional numeric tolerance) or an expected exception class. The child runs via `python -I -S` in a fresh empty environment and temporary directory with a 10 s timeout, process-group kill on expiry, and best-effort POSIX limits (1 GiB address space, 10 MiB file size). It returns only per-call `repr` values or raised exception MRO names; the parent decides `values/1` verdicts so exit status 0 or skipped calls never pass. Infrastructure failures abort with exit status 1 rather than scoring the model wrong. As documented in `docs/DESIGN.md`, this isolates honest regressions rather than untrusted arbitrary code, which should run inside network-isolated containers.
 
-The sandbox runs the child as `python -I -S` in a fresh temporary directory that is its working directory, `HOME` and `TMPDIR`, with an environment built from nothing, under a deadline (10 s per item by default) after which the whole process group is killed, and with best-effort POSIX limits on CPU time, address space (1 GiB) and file size (10 MiB). It is explicitly not a security boundary: the child runs as the invoking user and can read that user's files and open network connections. In CI the only code executed is the code in committed cassettes, reviewed like any other file; untrusted recordings should be scored in a container without network access.
+## F. Statistics and post-hoc decomposition
 
-## F. Statistics
+**Rates.** Every proportion $k/n$ carries a Wilson score interval [26], [27] with $z = 1.96$:
 
-**Rates.** Every rate $k/n$ carries a Wilson score interval [26] with $z = 1.96$:
+$$\frac{k + z^2/2}{n + z^2} \pm \frac{z \sqrt{k(n-k)/n + z^2/4}}{n + z^2},$$
 
-$$ \frac{k + z^2/2}{n + z^2} \pm \frac{z \sqrt{k(n-k)/n + z^2/4}}{n + z^2}, $$
+avoiding interval collapse at $k = 0$ or $k = n$.
 
-which, unlike the normal approximation, stays inside [0, 1] and does not collapse at $k = 0$ or $k = n$ [27].
+**Classifier metrics (`judge`, `review`).** Counting invalid replies as misses in their true class, balanced accuracy is
 
-**Judge metrics.** With true positives and false negatives counted on reference items and true negatives and false positives on wrong items, and a reply without a valid verdict counted as wrong in its class, the primary metric is balanced accuracy,
+$$\mathrm{BA} = \tfrac{1}{2}\left(\frac{TP}{P} + \frac{TN}{N}\right),$$
 
-$$ \mathrm{BA} = \tfrac{1}{2}\left(\frac{TP}{P} + \frac{TN}{N}\right), $$
+paired with cluster-bootstrap CIs and a flag (`vs_chance`) whenever the interval includes 0.5.
 
-with a bootstrap interval over tasks. A report flags a judge whose interval does not lie above 0.5.
+**Paired comparison and McNemar's test.** Arms join deterministically on `item_id`. Let discordant counts be $c$ gains ($c_i=1, b_i=0$) and $b$ losses ($c_i=0, b_i=1$). The 95% interval of $\Delta = \text{primary}(\text{cand}) - \text{primary}(\text{base})$ comes from 2,000 paired bootstrap resamples of *clusters* [23] seeded with `<seed>/<feature>/<split>`. Exact two-sided McNemar's test [16] evaluates
 
-**Paired comparison.** The arms are joined on item identifiers. For item $i$, let $x_i = c_i - b_i$ with $c_i, b_i \in \{0, 1\}$ the correctness of the candidate and of the baseline. *Gains* are the items with $x_i = +1$, *losses* those with $x_i = -1$, and $\Delta$ is the primary metric of the candidate minus that of the baseline on the joined items, $(\text{gains} - \text{losses})/n$ for the resolved rate. The 95% interval of $\Delta$ is a percentile interval from 2,000 paired bootstrap draws [23] of *clusters* with replacement: a task's two judge items, and twin tasks that share a group, are drawn together because they are not independent. The generator is seeded with the string `<seed>/<feature>/<split>`, so the interval is identical on every machine.
+$$p = \min\left(1,\; 2 \sum_{k=0}^{\min(b,c)} \binom{b+c}{k} 2^{-(b+c)}\right),$$
 
-**McNemar's test.** With $b$ losses and $c$ gains, the exact two-sided McNemar p-value [16] is
+requiring at least six unopposed losses for $p < 0.05$. Every report also reports the 80%-power detection floor $\mathrm{MDE}_{80} = (z_{0.975} + z_{0.80})\,\widehat{\mathrm{se}} \approx 2.80\,\widehat{\mathrm{se}}$.
 
-$$ p = \min\left(1,\; 2 \sum_{k=0}^{\min(b,c)} \binom{b+c}{k} 2^{-(b+c)}\right), $$
+**Post-hoc `metrics.both_valid_compare`.** Because end-to-end metrics combine instruction/format compliance with latent reasoning quality, `metrics.both_valid_compare` recomputes the identical cluster-bootstrap and McNemar comparison strictly over the subset of paired items where both arms produced `schema_valid` replies. This decomposition is strictly diagnostic and never alters pre-specified gate verdicts.
 
-and $p = 1$ when $b + c = 0$. With no gains, at least six losses are needed for $p < 0.05$ (since $2 \cdot 2^{-5} = 0.0625$ and $2 \cdot 2^{-6} = 0.03125$), whatever the suite size; every report states this number.
+## G. The gate rule (`noninferior/1`)
 
-**Minimum detectable effect.** With $\widehat{\mathrm{se}}$ the standard deviation of the bootstrap deltas, the report gives $\mathrm{MDE}_{80} = (z_{0.975} + z_{0.80})\,\widehat{\mathrm{se}} \approx 2.80\,\widehat{\mathrm{se}}$: the smallest true change that a two-sided 5% test on this suite would detect with 80% power.
+Rule `noninferior/1` promotes only if all applicable gates below pass. Refusals (mismatched features, splits, suites, or item sets, or missing/mismatched cassettes) exit 2 with no report; valid runs exit 0 regardless of verdict so CI reads `jq -e '.promote == true'`. No timestamps, hostnames, or absolute paths appear in reports.
 
-## G. The gate rule
-
-Rule `noninferior/1` promotes a candidate only when every applicable gate passes. The table below lists them.
-
-*Table: The gates of rule `noninferior/1` (`src/llm_eval_harness/gate.py`). The defaults are margin 0, ties pass, and alpha 0.05.*
+*Table: Gates of rule `noninferior/1` (`src/llm_eval_harness/gate.py`). Defaults: margin 0, `--tie pass`, alpha 0.05.*
 
 | Gate | Passes when |
 |---|---|
-| `schema_validity` | the candidate's schema validity is at least 0.95 |
-| `think_validity` | the candidate's thinking validity is at least 0.90 |
-| `new_sast_violations` | no item has a block-class finding in the candidate's reply whose rule is absent from the baseline's reply to the same item (bug fix only) |
-| `primary` | $\Delta \geq -\text{margin}$ (ties pass), or $\Delta > -\text{margin}$ with `--tie fail` |
-| `regression_test` | not (losses > gains and McNemar $p <$ alpha) |
-| `gain_test` | only with `--require-gain`: gains > losses and McNemar $p <$ alpha |
+| `schema_validity` | candidate strict schema validity $\ge 0.95$ |
+| `think_validity` | candidate thinking validity $\ge 0.90$ |
+| `new_sast_violations` | zero `(item, rule)` block findings absent from baseline (`bugfix`, `patch` only) |
+| `primary` | $\Delta \ge -\text{margin}$ (`--tie pass`), or $\Delta > -\text{margin}$ (`--tie fail`); against feature floor if no baseline |
+| `regression_test` | not ($\text{losses} > \text{gains}$ and McNemar $p < \text{alpha}$) |
+| `gain_test` | only under `--require-gain`: $\text{gains} > \text{losses}$ and McNemar $p < \text{alpha}$ |
 
-The tie policy is part of the rule because a tie is a decision. Passing ties is the right default for a regression test, which should not block a refactoring that changes nothing; replacing a baseline because a change is meant to help should demand more, `--tie fail --require-gain`. A positive margin absorbs the noise of a nondeterministic endpoint. The gate decides on the point estimate, with McNemar's test as a second guard, because on suites of a few dozen items the 95% interval of $\Delta$ is wider than any margin worth setting: requiring the interval's lower end to exceed the negative margin would fail nearly every candidate, and requiring a significant regression before rejecting would pass nearly every one. Without a baseline, the primary metric is compared with a floor (0.5 for the bug fix, 0.7 for the judge).
+## H. Promotion ledger, CI, and table sync
 
-The gate refuses, with exit status 2 and no report, to compare arms of different features, splits or suites, arms that do not cover the same item identifiers, and recordings that do not answer the requests rebuilt today. Exit status 0 means only that the evaluation ran; CI reads the verdict from the report (`jq -e '.promote == true'`), so a rejection and a failure to run remain distinguishable. The report contains no time stamps, host names or absolute paths.
+`ledger/ledger.jsonl` chains every `header`, `promote`, `rollback`, and `evaluation` row by SHA-256 and tracks held-out evaluations against a budget warning at 10 distinct candidates. The table below summarizes `.github/workflows/ci.yml`: on every push and pull request, `tests` runs unit tests, validates all four suites, verifies table synchronization and ledger integrity; `regression-gate` enforces promotion of the synthetic candidate and rejection of a deliberately regressed self-test arm; and `experiments` replays all 40 committed experiment reports byte for byte. `scripts/make_report_tables.py` renders Markdown and LaTeX tables directly from committed JSON reports without recomputing statistics, enforced by `tests/test_report_tables.py`.
 
-## H. The ledger
-
-`ledger/ledger.jsonl` is committed with the code. Each row carries the SHA-256 of the previous line and a hash of its own content, so an edited, removed or reordered row is detected by `llm-eval ledger verify`, which also re-fingerprints each feature's current baseline directory. A promotion is refused unless its report is a passing held-out report of exactly the candidate being promoted against the current baseline; an override must state a reason and is recorded as one. A rollback pops the stack of promotions. Evaluation rows, written by `llm-eval gate --record-evaluation`, count the distinct candidates judged on the held-out split; once ten have been judged, every report warns that the split is spent. CI reads the ledger and never writes it.
-
-## I. Continuous integration
-
-*Table: Jobs of `.github/workflows/ci.yml`. The workflow has read-only repository permissions.*
+*Table: Jobs of `.github/workflows/ci.yml` (read-only repository permissions).*
 
 | Job | Trigger | Function |
 |---|---|---|
-| `tests` | every push to `main`, every pull request | unit and end-to-end tests on Python 3.10, 3.11 and 3.12; suite validation; ledger verification |
-| `regression-gate` | after `tests` | replays the demo cassettes, gates the candidate and a deliberately regressed candidate against the current baseline on the held-out split, writes the job summary, uploads the reports, then requires the candidate to promote and the regressed candidate to be rejected by the expected gates |
-| `experiments` | after `tests` | replays every experiment's recorded real-model cassettes and fails if the current harness does not reproduce its committed reports byte for byte |
-| `live-config`, `live-eval` | manual dispatch | when repository secrets configure an endpoint, record a candidate and a baseline live and gate them |
-
-The self-test in `regression-gate` makes a harness change that would let a clearly regressed candidate through fail the build even though the real candidate still passes. `tests/test_workflow.py` parses the workflow without a YAML library, checks every `llm-eval` command line in it against the command-line parser, and runs the gate job's scripts, including their failure paths, on a copy of the repository.
-
-## J. Report generation
-
-The result tables of this report are generated by `scripts/make_report_tables.py` from the committed gate reports in `experiments/*/expected/*.json`, as markdown (`docs/report/tables.md` and marked blocks in Section V) and as LaTeX (`docs/paper/tables/*.tex`). The script only formats; it computes no statistic. `tests/test_report_tables.py` fails when a committed table differs from the one the reports produce, so the tables cannot drift from the data that CI reproduces.
+| `tests` | every push to `main`, PRs | pytest suite on Python 3.10–3.12; suite validation across `demo`, `humanevalfix`, `swe_review_bench`, `swe_coder_effort`; `make_report_tables.py --check`; `ledger verify` |
+| `regression-gate` | after `tests` | replays demo cassettes, promotes synthetic candidate, verifies expected failed-gate rejection of regressed self-test arm |
+| `experiments` | after `tests` | replays all 40 committed experiment reports (Experiments A–D) and requires byte-identical `cmp` agreement |
+| `live-config`, `live-eval` | manual dispatch | optionally records and gates a live OpenAI-compatible endpoint when secrets are configured |

@@ -29,7 +29,9 @@ from typing import Any, Mapping
 from .util import canonical_json, sha256_text
 
 #: The features this harness evaluates (features.FEATURES maps each name to its implementation).
-FEATURES = ("bugfix", "judge")
+FEATURES = ("bugfix", "judge", "review", "patch")
+#: The supported task suite kinds.
+SUITE_KINDS = ("function", "review", "patch")
 
 #: The two halves of a suite, and "all" for both together. The gate scores HELDOUT; DEV is for
 #: iterating on prompts as often as one likes (docs/DESIGN.md, "Splits").
@@ -93,15 +95,21 @@ class Task:
     """
 
     id: str
-    entry_point: str
-    buggy_code: str
-    shown_tests: tuple[Check, ...]
-    hidden_tests: tuple[Check, ...]
-    reference_code: str
-    wrong_code: str
+    entry_point: str = ""
+    buggy_code: str = ""
+    shown_tests: tuple[Check, ...] = ()
+    hidden_tests: tuple[Check, ...] = ()
+    reference_code: str = ""
+    wrong_code: str = ""
     group: str | None = None
     tags: tuple[str, ...] = ()
     synthetic: bool = False
+    kind: str = "function"
+    user_prompt: str = ""
+    label: bool | None = None
+    patch_files: tuple[str, ...] = ()
+    files: Mapping[str, str] = field(default_factory=dict, hash=False)
+    gold_files: Mapping[str, str | None] = field(default_factory=dict, hash=False)
 
     @property
     def all_tests(self) -> tuple[Check, ...]:
@@ -110,18 +118,40 @@ class Task:
 
     def to_json(self) -> dict[str, Any]:
         """The record as tasks.jsonl spells it, every field present (the suite hash covers it)."""
-        return {
-            "id": self.id,
-            "entry_point": self.entry_point,
-            "buggy_code": self.buggy_code,
-            "shown_tests": [c.to_json() for c in self.shown_tests],
-            "hidden_tests": [c.to_json() for c in self.hidden_tests],
-            "reference_code": self.reference_code,
-            "wrong_code": self.wrong_code,
-            "group": self.group,
-            "tags": list(self.tags),
-            "synthetic": self.synthetic,
-        }
+        if self.kind == "function":
+            return {
+                "id": self.id,
+                "entry_point": self.entry_point,
+                "buggy_code": self.buggy_code,
+                "shown_tests": [c.to_json() for c in self.shown_tests],
+                "hidden_tests": [c.to_json() for c in self.hidden_tests],
+                "reference_code": self.reference_code,
+                "wrong_code": self.wrong_code,
+                "group": self.group,
+                "tags": list(self.tags),
+                "synthetic": self.synthetic,
+            }
+        if self.kind == "review":
+            return {
+                "id": self.id,
+                "user_prompt": self.user_prompt,
+                "label": self.label,
+                "patch_files": list(self.patch_files),
+                "group": self.group,
+                "tags": list(self.tags),
+                "synthetic": self.synthetic,
+            }
+        if self.kind == "patch":
+            return {
+                "id": self.id,
+                "user_prompt": self.user_prompt,
+                "files": dict(self.files),
+                "gold_files": dict(self.gold_files),
+                "group": self.group,
+                "tags": list(self.tags),
+                "synthetic": self.synthetic,
+            }
+        raise ValueError(f"unknown task kind {self.kind!r}")
 
 
 @dataclass(frozen=True)
@@ -135,6 +165,7 @@ class Suite:
                       every task, sorted by id]}): the suite's identity, independent of formatting
       source          the directory as util.display_path shows it (never an absolute path)
       synthetic       the manifest's flag: the tasks were written for this repository
+      kind            "function", "review", or "patch" (defaults to "function")
     """
 
     name: str
@@ -145,6 +176,7 @@ class Suite:
     source: str
     synthetic: bool = False
     description: str = ""
+    kind: str = "function"
 
     def task(self, task_id: str) -> Task:
         """The task with this id (KeyError if there is none)."""
@@ -158,16 +190,19 @@ class Suite:
 class Item:
     """One unit a feature is evaluated on (features.Feature.items).
 
-      id            "bugfix:<task id>" or "judge:<task id>:<variant>"; the cassette lookup key.
-                    Never rendered into a prompt.
-      feature       "bugfix" or "judge"
+      id            "bugfix:<task id>", "judge:<task id>:<variant>", "review:...", or "patch:...";
+                    the cassette lookup key. Never rendered into a prompt.
+      feature       one of FEATURES
       task          the task it comes from
       split         DEV or HELDOUT, the task's split
       cluster       the bootstrap's resampling unit: the task's split key (group or id), so a
                     judge task's two items, and twins, are drawn together
-      variant       judge only: "reference" or "wrong"
-      label         judge only: the verdict a correct judge gives (True for "reference")
+      variant       judge/review on function suites: "reference" or "wrong"
+      label         judge/review: the verdict a correct classifier gives
       patched_code  judge only: the code under review (the task's reference or wrong code)
+      user_prompt   review/patch: the pre-rendered user prompt
+      files         patch: pre-patch files {relpath: content}
+      gold_files    patch: expected post-patch files {relpath: content_or_None}
     """
 
     id: str
@@ -178,6 +213,9 @@ class Item:
     variant: str | None = None
     label: bool | None = None
     patched_code: str | None = None
+    user_prompt: str | None = None
+    files: Mapping[str, str] | None = field(default=None, hash=False)
+    gold_files: Mapping[str, str | None] | None = field(default=None, hash=False)
 
 
 # ---- requests and responses -------------------------------------------------------------------

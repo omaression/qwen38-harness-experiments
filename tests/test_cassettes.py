@@ -644,3 +644,58 @@ def test_the_fingerprint_covers_only_the_manifest_and_tapes(tmp_path: Path) -> N
     assert fingerprint(root) == original
     (root / "stray.jsonl").write_text("", encoding="utf-8")
     assert fingerprint(root) != original
+    (root / "stray.jsonl").unlink()
+    assert fingerprint(root) == original
+    (root / "extra.jsonl.gz").write_bytes(b"gz")
+    assert fingerprint(root) != original
+
+
+def test_compressed_cassettes_round_trip_determinism_resume_and_guards(tmp_path: Path) -> None:
+    import gzip
+
+    dir1, dir2 = tmp_path / "c1", tmp_path / "c2"
+    r1, r2 = request("bugfix:a"), request("bugfix:b")
+    resp1, resp2 = response(content="answer a — 漢字"), response(content="answer b")
+
+    w1 = writer(dir1, compress=True)
+    w1.write(r1, resp1)
+    w1.close()
+    assert (dir1 / "bugfix.jsonl.gz").is_file() and not (dir1 / "bugfix.jsonl").exists()
+    assert manifest_of(dir1)["features"]["bugfix"]["file"] == "bugfix.jsonl.gz"
+
+    # Resume and append second item.
+    w1_resumed = writer(dir1, compress=True)
+    assert w1_resumed.has(r1) and not w1_resumed.has(r2)
+    w1_resumed.write(r2, resp2)
+    w1_resumed.close()
+
+    # Independent identical write must produce identical gzip bytes (mtime=0).
+    w2 = writer(dir2, compress=True)
+    w2.write(r1, resp1)
+    w2.write(r2, resp2)
+    w2.close()
+    assert (dir1 / "bugfix.jsonl.gz").read_bytes() == (dir2 / "bugfix.jsonl.gz").read_bytes()
+    assert fingerprint(dir1) == fingerprint(dir2)
+
+    loaded = load_cassettes(dir1)
+    recs = read_recordings(loaded, "bugfix")
+    assert recs["bugfix:a"].response == resp1 and recs["bugfix:b"].response == resp2
+
+    # Refuses mixing compress modes on the same feature.
+    with pytest.raises(CassetteError, match="gzipped"):
+        writer(dir1, compress=False).has(r1)
+
+    plain_dir = recorded_set(tmp_path / "plain")
+    with pytest.raises(CassetteError, match="not gzipped"):
+        writer(plain_dir, compress=True).has(r1)
+
+    # Corrupt or empty gzip tape raises CassetteError.
+    (dir2 / "bugfix.jsonl.gz").write_bytes(b"not-gzip")
+    with pytest.raises(CassetteError, match="not valid gzip"):
+        read_recordings(load_cassettes(dir2), "bugfix")
+    (dir2 / "bugfix.jsonl.gz").write_bytes(b"")
+    with pytest.raises(CassetteError, match="not valid gzip"):
+        read_recordings(load_cassettes(dir2), "bugfix")
+    (dir2 / "bugfix.jsonl.gz").write_bytes(gzip.compress(b'{"item_id":"x"}\n'))
+    with pytest.raises(CassetteError, match=r"bugfix\.jsonl\.gz:1: "):
+        read_recordings(load_cassettes(dir2), "bugfix")

@@ -297,7 +297,67 @@ def test_arm_metrics_adds_items_and_primary_metric_and_is_json() -> None:
         assert json.loads(canonical_json(block)) == block  # strict JSON: no NaN, string keys
     with pytest.raises(ValueError):
         arm_metrics("summarise", [])
-    assert set(PRIMARY) == {"bugfix", "judge"}
+    assert set(PRIMARY) == {"bugfix", "judge", "review", "patch"}
+
+
+def test_review_and_patch_metrics_and_both_valid_compare() -> None:
+    rev_rows = [
+        ItemResult(
+            item_id=f"review:t{k}", feature="review", task_id=f"t{k}", cluster=f"t{k}", split="heldout",
+            correct=(k != 2), schema_valid=(k != 2), lenient_valid=(k != 2),
+            think_present=True, think_valid=True, think_words=10,
+            label=(k % 2 == 0), predicted=(None if k == 2 else (k % 2 == 0)),
+        )
+        for k in range(6)
+    ]
+    rev = arm_metrics("review", rev_rows, resamples=50, seed=1)
+    assert rev["items"] == 6 and rev["primary_metric"] == "balanced_accuracy"
+    assert rev["positives"] == 3 and rev["negatives"] == 3
+    assert rev["confusion"]["invalid_pos"] == 1
+    assert rev["balanced_accuracy"] == pytest.approx((2 / 3 + 1.0) / 2, abs=1e-6)
+    assert rev["primary"] == rev["balanced_accuracy"]
+    assert metrics.primary_of("review", rev_rows) == pytest.approx(5 / 6)
+
+    pat_rows = [
+        ItemResult(
+            item_id="patch:p1", feature="patch", task_id="p1", cluster="p1", split="heldout",
+            correct=True, schema_valid=True, lenient_valid=True, think_present=False, think_valid=True, think_words=0,
+            detail={"applied": True, "noop": False, "gold_match": True, "tags": ["multi-file"]},
+        ),
+        ItemResult(
+            item_id="patch:p2", feature="patch", task_id="p2", cluster="p2", split="heldout",
+            correct=False, schema_valid=True, lenient_valid=True, think_present=False, think_valid=True, think_words=0,
+            sast_block=("shell-true",), detail={"applied": True, "noop": False, "gold_match": False, "tags": ["multi-file"]},
+        ),
+        ItemResult(
+            item_id="patch:p3", feature="patch", task_id="p3", cluster="p3", split="heldout",
+            correct=False, schema_valid=False, lenient_valid=True, think_present=False, think_valid=True, think_words=0,
+            detail={"applied": False, "noop": False, "gold_match": False},
+        ),
+    ]
+    pat = arm_metrics("patch", pat_rows)
+    assert pat["items"] == 3 and pat["primary_metric"] == "usable_rate"
+    assert pat["usable"] == 1 and pat["usable_rate"] == pytest.approx(1 / 3, abs=1e-6)
+    assert pat["applied_rate"] == pytest.approx(2 / 3, abs=1e-6)
+    assert pat["gold_match_rate"] == pytest.approx(1 / 3, abs=1e-6)
+    assert pat["sast"] == {"block": {"shell-true": 1}, "flag": {}}
+    assert pat["by_tag"] == {"multi-file": {"items": 2, "usable": 1}}
+    assert metrics.primary_of("patch", pat_rows) == pytest.approx(1 / 3)
+    assert metrics.patch_metrics([])["usable_rate"] is None
+
+    # both_valid_compare keeps only items where candidate & baseline are both schema_valid
+    cand = [
+        ItemResult("patch:1", "patch", "1", "1", "heldout", True, True, True, False, True, 0),
+        ItemResult("patch:2", "patch", "2", "2", "heldout", False, False, False, False, True, 0),
+        ItemResult("patch:3", "patch", "3", "3", "heldout", True, True, True, False, True, 0),
+    ]
+    base = [
+        ItemResult("patch:1", "patch", "1", "1", "heldout", False, True, True, False, True, 0),
+        ItemResult("patch:2", "patch", "2", "2", "heldout", True, True, True, False, True, 0),
+        ItemResult("patch:3", "patch", "3", "3", "heldout", True, False, True, False, True, 0),
+    ]
+    both = metrics.both_valid_compare("patch", cand, base, split="heldout", resamples=50)
+    assert (both.n, both.gains, both.losses, both.delta) == (1, 1, 0, 1.0)
 
 
 def test_primary_of() -> None:

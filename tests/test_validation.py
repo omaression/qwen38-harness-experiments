@@ -115,7 +115,7 @@ def test_the_reference_code_shown_in_a_prompt_is_refused(tmp_path: Path) -> None
     task = tiny("t-clamp")
     task["buggy_code"] = f"_HINT = '''{task['reference_code']}'''\n\n\n" + task["buggy_code"]
     problems = problems_of(tmp_path, task)
-    assert problems == ["t-clamp: the task's reference code appears in the prompts of bugfix/v1, bugfix/v2, judge/v1, judge/v2"]
+    assert problems == ["t-clamp: the task's reference code appears in the prompts of bugfix/v1, bugfix/v2, judge/v1, judge/v2, patch/v1"]
 
 
 def test_eval_in_the_reference_is_refused(tmp_path: Path) -> None:
@@ -204,3 +204,65 @@ def test_the_report_round_trips_as_json() -> None:
     report = ValidationReport(suite="s", sha256="0" * 64, tasks=0, splits={DEV: 0, HELDOUT: 0}, executed=False, warnings=["w"])
     assert report.to_json() == {"suite": "s", "sha256": "0" * 64, "tasks": 0, "splits": {DEV: 0, HELDOUT: 0}, "executed": False,
                                 "problems": [], "warnings": ["w"], "valid": True}
+
+
+def test_review_suite_validation_checks_leaks_twins_and_skips_exec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_execution(*args: object, **kwargs: object) -> None:
+        raise AssertionError("review validation must not execute code")
+
+    monkeypatch.setattr(validation.verdicts, "exec_verdict", no_execution)
+    ok_tasks = [
+        {"id": "rev-1", "user_prompt": "Review patch changing foo() to handle empty lists.", "label": True, "patch_files": ["foo.py"]},
+        {"id": "rev-2", "user_prompt": "Review patch removing null guard in bar().", "label": False, "patch_files": ["bar.py"]},
+    ]
+    report = validate_suite(suite_of(tmp_path / "ok", *ok_tasks, kind="review"))
+    assert report.valid and not report.executed, report.problems
+
+    leaking = [{"id": "rev-leak", "user_prompt": 'Patch details: {"passed": true}', "label": True}]
+    bad_leak = validate_suite(suite_of(tmp_path / "leak", *leaking, kind="review"))
+    assert not bad_leak.valid and any("injected gold label literal" in p for p in bad_leak.problems)
+
+    # Twin prompt on opposite sides of split (use tasks.split_of to place one in dev and one in heldout).
+    dev_id = next(f"case-{i}" for i in range(200) if tasks.bucket(f"case-{i}") >= 50)
+    held_id = next(f"case-{i}" for i in range(200) if tasks.bucket(f"case-{i}") < 50)
+    twin_prompt = "Review identical diff across dev and heldout."
+    twins_report = validate_suite(suite_of(
+        tmp_path / "twins",
+        {"id": dev_id, "user_prompt": twin_prompt, "label": True},
+        {"id": held_id, "user_prompt": twin_prompt, "label": False},
+        kind="review",
+    ))
+    assert not twins_report.valid and any("identical normalised user_prompt" in p for p in twins_report.problems)
+
+
+def test_patch_suite_validation_checks_ast_sast_leaks_and_twins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_execution(*args: object, **kwargs: object) -> None:
+        raise AssertionError("patch validation must not execute code")
+
+    monkeypatch.setattr(validation.verdicts, "exec_verdict", no_execution)
+    ok_task = {
+        "id": "pat-1",
+        "user_prompt": "Fix off-by-one in src/app.py\n\n```python\ndef add1(x):\n    return x\n```",
+        "files": {"src/app.py": "def add1(x):\n    return x\n"},
+        "gold_files": {"src/app.py": "def add1(x):\n    return x + 1\n"},
+    }
+    ok_report = validate_suite(suite_of(tmp_path / "ok", ok_task, kind="patch"))
+    assert ok_report.valid and not ok_report.executed, ok_report.problems
+
+    bad_syntax = {**ok_task, "gold_files": {"src/app.py": "def add1(x):\n    return (\n"}}
+    syn_report = validate_suite(suite_of(tmp_path / "syn", bad_syntax, kind="patch"))
+    assert not syn_report.valid and any("does not parse" in p for p in syn_report.problems)
+
+    bad_sast = {**ok_task, "gold_files": {"src/app.py": "def add1(x):\n    return eval(str(x))\n"}}
+    sast_report = validate_suite(suite_of(tmp_path / "sast", bad_sast, kind="patch"))
+    assert not sast_report.valid and any("eval-exec" in p for p in sast_report.problems)
+
+    leaked_gold = "def add1(x):\n    return x + 42\n"
+    leak_task = {
+        "id": "pat-leak",
+        "user_prompt": f"Fix add1:\n{leaked_gold}",
+        "files": {"src/app.py": "def add1(x):\n    return x\n"},
+        "gold_files": {"src/app.py": leaked_gold},
+    }
+    leak_report = validate_suite(suite_of(tmp_path / "leak", leak_task, kind="patch"))
+    assert not leak_report.valid and any("changed gold_files text" in p for p in leak_report.problems)

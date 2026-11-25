@@ -48,6 +48,7 @@ from __future__ import annotations
 import ast
 import builtins
 import difflib
+import gzip
 import io
 import json
 import keyword
@@ -55,10 +56,11 @@ import math
 import os
 import re
 import tokenize
+import zlib
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
-from .records import ALL, DEV, HELDOUT, Check, Suite, Task
+from .records import ALL, DEV, HELDOUT, SUITE_KINDS, Check, Suite, Task
 from .util import display_path, sha256_json, sha256_text
 
 SUITE_SCHEMA = "llm_eval_harness.suite/1"
@@ -66,12 +68,17 @@ SUITE_SCHEMA = "llm_eval_harness.suite/1"
 DEFAULT_SUITE = "tasks/demo"
 SUITE_FILE = "suite.json"
 TASKS_FILE = "tasks.jsonl"
-#: Keys a task line may carry; anything else is refused.
+TASKS_GZ_FILE = "tasks.jsonl.gz"
+#: Keys a function task line may carry; anything else is refused.
 TASK_KEYS = frozenset({"id", "entry_point", "buggy_code", "shown_tests", "hidden_tests", "reference_code", "wrong_code", "group", "tags", "synthetic"})
+#: Keys a review task line may carry.
+REVIEW_TASK_KEYS = frozenset({"id", "user_prompt", "label", "patch_files", "group", "tags", "synthetic"})
+#: Keys a patch task line may carry.
+PATCH_TASK_KEYS = frozenset({"id", "user_prompt", "files", "gold_files", "group", "tags", "synthetic"})
 #: Keys a test object may carry.
 CHECK_KEYS = frozenset({"call", "expected", "raises", "approx"})
 #: Keys suite.json may carry.
-SUITE_KEYS = frozenset({"schema", "name", "version", "heldout_pct", "synthetic", "description"})
+SUITE_KEYS = frozenset({"schema", "name", "version", "heldout_pct", "synthetic", "description", "kind"})
 #: The fewest hidden tests a task may have: with one, "resolved" rests on a single assert.
 MIN_HIDDEN_TESTS = 2
 #: find_twins' default similarity threshold (difflib ratio of the normalised token streams).
@@ -104,13 +111,20 @@ def load_suite(root: str | os.PathLike[str]) -> Suite:
     """Load the suite in directory `root`.
 
     Reads suite.json (schema must be SUITE_SCHEMA; heldout_pct an int in 0..100) and tasks.jsonl
-    (parse_task per line). Refuses duplicate task ids. Computes Suite.sha256 as records.Suite
-    documents it. Suite.source is util.display_path(root). Raises SuiteError."""
+    or tasks.jsonl.gz (parse_task per line). Refuses duplicate task ids and refuses having both
+    tasks.jsonl and tasks.jsonl.gz. Computes Suite.sha256 as records.Suite documents it.
+    Suite.source is util.display_path(root). Raises SuiteError."""
     directory = Path(root)
     if not directory.is_dir():
         raise SuiteError(f"{display_path(directory)}: not a directory (a suite is a directory holding {SUITE_FILE} and {TASKS_FILE})")
     manifest = _read_manifest(directory / SUITE_FILE)
-    loaded = _read_tasks(directory / TASKS_FILE)
+    kind = manifest.get("kind", "function")
+    plain_path = directory / TASKS_FILE
+    gz_path = directory / TASKS_GZ_FILE
+    if plain_path.exists() and gz_path.exists():
+        raise SuiteError(f"{display_path(directory)}: holds both {TASKS_FILE} and {TASKS_GZ_FILE}; keep only one")
+    use_gz = gz_path.exists()
+    loaded = _read_tasks(gz_path if use_gz else plain_path, kind=kind, compressed=use_gz)
     digest = sha256_json({"manifest": manifest, "tasks": [t.to_json() for t in sorted(loaded, key=lambda t: t.id)]})
     return Suite(
         name=manifest["name"],
@@ -121,23 +135,20 @@ def load_suite(root: str | os.PathLike[str]) -> Suite:
         source=display_path(directory),
         synthetic=manifest.get("synthetic", False),
         description=manifest.get("description", ""),
+        kind=kind,
     )
 
 
-def parse_task(obj: Mapping[str, Any], where: str) -> Task:
+def parse_task(obj: Mapping[str, Any], where: str, *, kind: str = "function") -> Task:
     """One tasks.jsonl object as a records.Task. `where` ("tasks.jsonl:7") prefixes errors.
 
-    Checks types and keys only (TASK_KEYS; required: id, entry_point, buggy_code, shown_tests,
-    hidden_tests, reference_code, wrong_code). Semantic checks are check_structure's."""
+    Checks types and keys according to `kind` ("function", "review", or "patch"). Semantic checks
+    are check_structure's."""
+    if kind not in SUITE_KINDS:
+        raise SuiteError(f"{where}: unknown task kind {kind!r} (expected: {', '.join(SUITE_KINDS)})")
     if not isinstance(obj, Mapping):
         raise SuiteError(f"{where}: a task must be a JSON object, not {_json_type(obj)}")
-    _refuse_unknown_keys(obj, TASK_KEYS, where, "task")
-    _require_keys(obj, _REQUIRED_TASK_KEYS, where)
-    for key in ("id", "entry_point", *_CODE_FIELDS):
-        if not isinstance(obj[key], str):
-            raise SuiteError(f"{where}: {key} must be a string, not {_json_type(obj[key])}")
-    shown = _parse_checks(obj["shown_tests"], f"{where}: shown_tests")
-    hidden = _parse_checks(obj["hidden_tests"], f"{where}: hidden_tests")
+
     group = obj.get("group")
     if group is not None and not isinstance(group, str):
         raise SuiteError(f"{where}: group must be a string or null, not {_json_type(group)}")
@@ -147,17 +158,78 @@ def parse_task(obj: Mapping[str, Any], where: str) -> Task:
     synthetic = obj.get("synthetic", False)
     if not isinstance(synthetic, bool):
         raise SuiteError(f"{where}: synthetic must be true or false, not {_json_type(synthetic)}")
+
+    if kind == "function":
+        _refuse_unknown_keys(obj, TASK_KEYS, where, "task")
+        _require_keys(obj, _REQUIRED_TASK_KEYS, where)
+        for key in ("id", "entry_point", *_CODE_FIELDS):
+            if not isinstance(obj[key], str):
+                raise SuiteError(f"{where}: {key} must be a string, not {_json_type(obj[key])}")
+        shown = _parse_checks(obj["shown_tests"], f"{where}: shown_tests")
+        hidden = _parse_checks(obj["hidden_tests"], f"{where}: hidden_tests")
+        return Task(
+            id=obj["id"],
+            entry_point=obj["entry_point"],
+            buggy_code=obj["buggy_code"],
+            shown_tests=shown,
+            hidden_tests=hidden,
+            reference_code=obj["reference_code"],
+            wrong_code=obj["wrong_code"],
+            group=group,
+            tags=tuple(tags),
+            synthetic=synthetic,
+            kind="function",
+        )
+
+    if kind == "review":
+        _refuse_unknown_keys(obj, REVIEW_TASK_KEYS, where, "task")
+        _require_keys(obj, ("id", "user_prompt", "label"), where)
+        if not isinstance(obj["id"], str):
+            raise SuiteError(f"{where}: id must be a string, not {_json_type(obj['id'])}")
+        if not isinstance(obj["user_prompt"], str) or not obj["user_prompt"].strip():
+            raise SuiteError(f"{where}: user_prompt must be a non-empty string")
+        if type(obj["label"]) is not bool:
+            raise SuiteError(f"{where}: label must be true or false, not {_json_type(obj['label'])}")
+        patch_files = obj.get("patch_files", [])
+        if not isinstance(patch_files, (list, tuple)) or not all(isinstance(p, str) for p in patch_files):
+            raise SuiteError(f"{where}: patch_files must be a list of strings")
+        return Task(
+            id=obj["id"],
+            group=group,
+            tags=tuple(tags),
+            synthetic=synthetic,
+            kind="review",
+            user_prompt=obj["user_prompt"],
+            label=obj["label"],
+            patch_files=tuple(patch_files),
+        )
+
+    # kind == "patch"
+    _refuse_unknown_keys(obj, PATCH_TASK_KEYS, where, "task")
+    _require_keys(obj, ("id", "user_prompt", "files", "gold_files"), where)
+    if not isinstance(obj["id"], str):
+        raise SuiteError(f"{where}: id must be a string, not {_json_type(obj['id'])}")
+    if not isinstance(obj["user_prompt"], str) or not obj["user_prompt"].strip():
+        raise SuiteError(f"{where}: user_prompt must be a non-empty string")
+    files = obj["files"]
+    if not isinstance(files, Mapping) or not files or not all(isinstance(k, str) and isinstance(v, str) for k, v in files.items()):
+        raise SuiteError(f"{where}: files must be a non-empty object mapping file paths to strings")
+    gold_files = obj["gold_files"]
+    if (
+        not isinstance(gold_files, Mapping)
+        or not gold_files
+        or not all(isinstance(k, str) and (v is None or isinstance(v, str)) for k, v in gold_files.items())
+    ):
+        raise SuiteError(f"{where}: gold_files must be a non-empty object mapping file paths to strings or null")
     return Task(
         id=obj["id"],
-        entry_point=obj["entry_point"],
-        buggy_code=obj["buggy_code"],
-        shown_tests=shown,
-        hidden_tests=hidden,
-        reference_code=obj["reference_code"],
-        wrong_code=obj["wrong_code"],
         group=group,
         tags=tuple(tags),
         synthetic=synthetic,
+        kind="patch",
+        user_prompt=obj["user_prompt"],
+        files=dict(files),
+        gold_files=dict(gold_files),
     )
 
 
@@ -201,12 +273,15 @@ def _read_manifest(path: Path) -> dict[str, Any]:
         raise SuiteError(f"{where}: synthetic must be true or false")
     if not isinstance(manifest.get("description", ""), str):
         raise SuiteError(f"{where}: description must be a string")
+    kind = manifest.get("kind", "function")
+    if not isinstance(kind, str) or kind not in SUITE_KINDS:
+        raise SuiteError(f"{where}: kind must be one of {', '.join(SUITE_KINDS)}, not {kind!r}")
     return manifest
 
 
-def _read_tasks(path: Path) -> list[Task]:
+def _read_tasks(path: Path, *, kind: str = "function", compressed: bool = False) -> list[Task]:
     shown = display_path(path)
-    text = _read_text(path, shown)
+    text = _read_gzip_text(path, shown) if compressed else _read_text(path, shown)
     tasks: list[Task] = []
     first_line: dict[str, int] = {}
     # Split on "\n" only: str.splitlines would also break at U+2028 and U+2029, which may stand
@@ -218,7 +293,7 @@ def _read_tasks(path: Path) -> list[Task]:
         obj = _parse_json(line, where, multiline=False)
         if not isinstance(obj, dict):
             raise SuiteError(f"{where}: {_json_type(obj)}, not a JSON object")
-        task = parse_task(obj, where)
+        task = parse_task(obj, where, kind=kind)
         if task.id in first_line:
             raise SuiteError(f"{where}: duplicate task id {task.id!r} (first on line {first_line[task.id]})")
         first_line[task.id] = number
@@ -226,6 +301,25 @@ def _read_tasks(path: Path) -> list[Task]:
     if not tasks:
         raise SuiteError(f"{shown}: holds no tasks")
     return tasks
+
+
+def _read_gzip_text(path: Path, where: str) -> str:
+    try:
+        raw = path.read_bytes()
+    except FileNotFoundError:
+        raise SuiteError(f"{where}: no such file") from None
+    except OSError as exc:
+        raise SuiteError(f"{where}: cannot be read ({exc.strerror or type(exc).__name__})") from None
+    if not raw:
+        raise SuiteError(f"{where}: not valid gzip (empty file)")
+    try:
+        data = gzip.decompress(raw)
+    except (OSError, EOFError, zlib.error) as exc:
+        raise SuiteError(f"{where}: not valid gzip ({exc})") from None
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise SuiteError(f"{where}: not UTF-8 text ({exc.reason})") from None
 
 
 def _read_text(path: Path, where: str) -> str:
@@ -397,17 +491,57 @@ def check_structure(suite: Suite) -> list[str]:
             problems.append(f"task {task.id!r}: more than one task has this id")
             reported.add(key)
         seen.add(key)
-        problems.extend(_task_problems(task))
+        problems.extend(_task_problems(task, expected_kind=suite.kind))
     return problems
 
 
-def _task_problems(task: Task) -> list[str]:
+def _is_clean_relpath(path: Any) -> bool:
+    if not isinstance(path, str) or not path or path.startswith("/") or "\\" in path:
+        return False
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in path):
+        return False
+    parts = path.split("/")
+    return not any(part in ("", ".", "..") for part in parts)
+
+
+def _task_problems(task: Task, *, expected_kind: str = "function") -> list[str]:
     name = f"task {task.id!r}"
     out: list[str] = []
     if not isinstance(task.id, str) or not _ID_PATTERN.fullmatch(task.id):
         out.append(f"{name}: the id does not match [a-z0-9][a-z0-9-]*")
     if task.group is not None and (not isinstance(task.group, str) or not normalize_key(task.group)):
         out.append(f"{name}: the group is empty (leave it out to split on the id)")
+    if task.kind != expected_kind:
+        out.append(f"{name}: kind {task.kind!r} does not match suite kind {expected_kind!r}")
+        return out
+    if expected_kind == "review":
+        if not isinstance(task.user_prompt, str) or not task.user_prompt.strip():
+            out.append(f"{name}: user_prompt is empty")
+        if type(task.label) is not bool:
+            out.append(f"{name}: label must be a boolean")
+        if not all(isinstance(p, str) and bool(p.strip()) for p in task.patch_files):
+            out.append(f"{name}: patch_files must contain non-empty strings")
+        return out
+    if expected_kind == "patch":
+        if not isinstance(task.user_prompt, str) or not task.user_prompt.strip():
+            out.append(f"{name}: user_prompt is empty")
+        files_ok = (
+            isinstance(task.files, Mapping)
+            and bool(task.files)
+            and all(_is_clean_relpath(k) and isinstance(v, str) for k, v in task.files.items())
+        )
+        if not files_ok:
+            out.append(f"{name}: files must be a non-empty mapping of relative paths to strings")
+        gold_ok = (
+            isinstance(task.gold_files, Mapping)
+            and bool(task.gold_files)
+            and all(_is_clean_relpath(k) and (v is None or isinstance(v, str)) for k, v in task.gold_files.items())
+        )
+        if not gold_ok:
+            out.append(f"{name}: gold_files must be a non-empty mapping of relative paths to strings or null")
+        if files_ok and gold_ok and not any(task.files.get(p) != v for p, v in task.gold_files.items()):
+            out.append(f"{name}: gold_files does not differ from files")
+        return out
 
     entry = task.entry_point
     entry_ok = isinstance(entry, str) and entry.isidentifier() and not keyword.iskeyword(entry)
@@ -649,20 +783,29 @@ def normalize_code(code: str) -> list[str]:
 
 def find_twins(suite: Suite, threshold: float = TWIN_THRESHOLD) -> list[tuple[str, str, float]]:
     """(dev task id, held-out task id, similarity) for every pair of tasks on opposite sides of
-    the split, in different groups, whose normalize_code token lists have a
+    the split, in different groups, whose normalised token lists have a
     difflib.SequenceMatcher ratio >= threshold; sorted by similarity, highest first.
+
+    For function suites, normalize_code(t.buggy_code) is used; for review and patch suites,
+    normalized whitespace tokens of user_prompt are used.
 
     Ties in similarity are ordered by the two ids. The matcher runs without its "autojunk"
     heuristic, which would otherwise discard frequent tokens such as "ID" in longer code."""
     dev = tasks_in_split(suite, DEV)
     held = tasks_in_split(suite, HELDOUT)
-    tokens = {t.id: normalize_code(t.buggy_code) for t in dev + held}
+    if suite.kind == "function":
+        tokens = {t.id: normalize_code(t.buggy_code) for t in dev + held}
+    else:
+        tokens = {t.id: t.user_prompt.split() for t in dev + held}
     pairs: list[tuple[str, str, float]] = []
     for d in dev:
         for h in held:
             if normalize_key(d.group or d.id) == normalize_key(h.group or h.id):
                 continue
-            ratio = difflib.SequenceMatcher(None, tokens[d.id], tokens[h.id], autojunk=False).ratio()
+            matcher = difflib.SequenceMatcher(None, tokens[d.id], tokens[h.id], autojunk=False)
+            if threshold > 0.0 and (matcher.real_quick_ratio() < threshold or matcher.quick_ratio() < threshold):
+                continue
+            ratio = matcher.ratio()
             if ratio >= threshold:
                 pairs.append((d.id, h.id, ratio))
     pairs.sort(key=lambda pair: (-pair[2], pair[0], pair[1]))
