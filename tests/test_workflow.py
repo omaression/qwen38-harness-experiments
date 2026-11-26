@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 TEXT = WORKFLOW.read_text(encoding="utf-8")
 LINES = TEXT.splitlines()
-JOBS = ("tests", "regression-gate", "experiments", "live-config", "live-eval")
+JOBS = ("tests", "regression-gate", "experiments", "paper", "live-config", "live-eval")
 LIVE_JOBS = ("live-config", "live-eval")
 SECRETS = ("LLM_EVAL_BASE_URL", "LLM_EVAL_API_KEY", "LLM_EVAL_CANDIDATE_MODEL", "LLM_EVAL_BASELINE_MODEL")
 #: What the self-test expects of the regressed candidate (tests/test_demo.py checks the same sets
@@ -176,6 +176,7 @@ def test_the_jobs_and_what_they_need() -> None:
     assert "needs" not in head["tests"]
     assert "    needs: tests" in head["regression-gate"]
     assert "    needs: tests" in head["experiments"]
+    assert "    needs: tests" in head["paper"]
     assert "    if: github.event_name == 'workflow_dispatch'" in head["live-config"]
     assert "    needs: live-config" in head["live-eval"]
     assert "    if: needs.live-config.outputs.configured == 'true'" in head["live-eval"]
@@ -217,7 +218,7 @@ def test_actions_are_pinned_to_their_current_major_versions() -> None:
 
 def test_secrets_appear_only_in_the_live_jobs() -> None:
     table = jobs()
-    for job in ("tests", "regression-gate", "experiments"):
+    for job in ("tests", "regression-gate", "experiments", "paper"):
         assert "secrets." not in "\n".join(table[job]), f"{job} must run without secrets"
     outside = [line for line in LINES if "secrets." in line and not any(line in table[job] for job in LIVE_JOBS)]
     assert not outside
@@ -456,6 +457,22 @@ def test_the_experiments_job_reads_names_and_suites() -> None:
     assert 'cmp -s "$out" "$report"' in script and "::error title=Experiment drift::" in script
     assert "| head -40 || true" in script, "a difference must not end the loop before the other reports are checked"
     assert script.rstrip().endswith('exit "$status"')
+
+
+def test_the_paper_job() -> None:
+    paper_steps = steps("paper")
+    scripts = {step.get("name"): step.get("run", "") for step in paper_steps}
+    compile_script = scripts["Compile IEEE report PDF"]
+    assert "cd docs/paper" in compile_script
+    assert "pdflatex -interaction=nonstopmode -halt-on-error main.tex" in compile_script
+    assert "bibtex main" in compile_script
+    assert "test -s main.pdf" in compile_script
+    assert '! grep -E "Reference .* undefined|Citation .* undefined" main.log' in compile_script
+    upload = next(step for step in paper_steps if step.get("uses", "").startswith("actions/upload-artifact"))
+    assert upload["uses"] == "actions/upload-artifact@v7"
+    assert upload["with"]["name"] == "ieee-report-pdf"
+    assert upload["with"]["path"] == "docs/paper/main.pdf"
+    assert upload["with"]["retention-days"] == "30"
 
 
 #: (experiment, report) pairs the replay test runs: the three naming and suite cases.

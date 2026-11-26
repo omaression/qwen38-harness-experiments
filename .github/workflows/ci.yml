@@ -4,6 +4,7 @@
 #                    still rejects a clearly regressed candidate (its self-test)
 #   experiments      replays every experiment's recorded real-model cassettes and compares the gate
 #                    reports with the committed ones in experiments/*/expected/, byte for byte
+#   paper            compiles docs/paper/main.tex into main.pdf and verifies zero undefined refs/cites
 #   live-config,     manual dispatch only: record a live OpenAI-compatible endpoint and gate it,
 #   live-eval        when the repository secrets configure one
 name: CI
@@ -199,6 +200,34 @@ jobs:
             done
           done
           exit "$status"
+
+  paper:
+    name: paper builds (IEEEtran PDF)
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install TeX Live (pdflatex)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
+      - name: Compile IEEE report PDF
+        run: |
+          cd docs/paper
+          pdflatex -interaction=nonstopmode -halt-on-error main.tex
+          bibtex main
+          pdflatex -interaction=nonstopmode -halt-on-error main.tex
+          pdflatex -interaction=nonstopmode -halt-on-error main.tex
+          test -s main.pdf
+          ! grep -E "Reference .* undefined|Citation .* undefined" main.log
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ieee-report-pdf
+          path: docs/paper/main.pdf
+          retention-days: 30
 
   live-config:
     name: live evaluation configured?

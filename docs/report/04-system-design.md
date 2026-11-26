@@ -104,7 +104,7 @@ Rule `noninferior/1` promotes only if all applicable gates below pass. Refusals 
 
 ## H. Promotion ledger, CI, and table sync
 
-`ledger/ledger.jsonl` chains every `header`, `promote`, `rollback`, and `evaluation` row by SHA-256 and tracks held-out evaluations against a budget warning at 10 distinct candidates. The table below summarizes `.github/workflows/ci.yml`: on every push and pull request, `tests` runs unit tests, validates all four suites, verifies table synchronization and ledger integrity; `regression-gate` enforces promotion of the synthetic candidate and rejection of a deliberately regressed self-test arm; and `experiments` replays all 40 committed experiment reports byte for byte. `scripts/make_report_tables.py` renders Markdown and LaTeX tables directly from committed JSON reports without recomputing statistics, enforced by `tests/test_report_tables.py`.
+`ledger/ledger.jsonl` chains every `header`, `promote`, `rollback`, and `evaluation` row by SHA-256 and tracks held-out evaluations against a budget warning at 10 distinct candidates. The table below summarizes `.github/workflows/ci.yml`: on every push and pull request, `tests` runs unit tests, validates all four suites, verifies table synchronization and ledger integrity; `regression-gate` enforces promotion of the synthetic candidate and rejection of a deliberately regressed self-test arm; `experiments` replays all 40 committed experiment reports byte for byte; and `paper` compiles the IEEE PDF from LaTeX and verifies zero undefined references or citations. `scripts/make_report_tables.py` renders Markdown and LaTeX tables directly from committed JSON reports without recomputing statistics, enforced by `tests/test_report_tables.py`.
 
 *Table: Jobs of `.github/workflows/ci.yml` (read-only repository permissions).*
 
@@ -113,4 +113,5 @@ Rule `noninferior/1` promotes only if all applicable gates below pass. Refusals 
 | `tests` | every push to `main`, PRs | pytest suite on Python 3.10–3.12; suite validation across `demo`, `humanevalfix`, `swe_review_bench`, `swe_coder_effort`; `make_report_tables.py --check`; `ledger verify` |
 | `regression-gate` | after `tests` | replays demo cassettes, promotes synthetic candidate, verifies expected failed-gate rejection of regressed self-test arm |
 | `experiments` | after `tests` | replays all 40 committed experiment reports (Experiments A–D) and requires byte-identical `cmp` agreement |
+| `paper` | after `tests` | compiles `docs/paper/main.tex` with `pdflatex`/`bibtex`, verifies zero undefined references/citations, uploads `main.pdf` |
 | `live-config`, `live-eval` | manual dispatch | optionally records and gates a live OpenAI-compatible endpoint when secrets are configured |

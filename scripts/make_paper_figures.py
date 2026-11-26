@@ -793,7 +793,7 @@ def draw_fig_power_noise() -> bytes:
     c.text(
         px + 4.0,
         y_noise + 2.5,
-        "C0 noise band (|\u0394| \u2264  0.041)",
+        "C0 noise band (|\u0394| \u2264 0.041)",
         size=5.5,
         color=AMBER_DEEP,
         bold=True,
@@ -826,49 +826,49 @@ def draw_fig_power_noise() -> bytes:
     c.line(x_demo + 2.5, (y_demo_fl + y_demo_mde) / 2.0, lx_demo - 2.0, ly_demo - 1.5, color=SLATE, width=0.55)
     c.text(lx_demo, ly_demo, "demo (n=16)", size=5.7, color=NAVY, bold=True)
     c.text(lx_demo, ly_demo - 7.5, "floor 0.375", size=5.4, color=INK)
-    c.text(lx_demo, ly_demo - 14.5, "MDE80 \u2248  0.31", size=5.4, color=TEAL, bold=True)
+    c.text(lx_demo, ly_demo - 14.5, "MDE80 \u2248 0.31", size=5.4, color=TEAL, bold=True)
 
     # 2. humanevalfix: n=74, floor=0.081, ceiling-compressed
     x_he = map_x(74.0)
     y_he = map_y(6.0 / 74.0)
     c.circle(x_he, y_he, 2.5, fill=NAVY, stroke=WHITE, stroke_w=0.5)
-    # Place label cleanly in the open region below the 6/n curve (n=16..55, y=0.06..0.13)
+    # Place label cleanly in the open region below the 6/n curve (n=16..55, y=0.06..0.14)
     lx_he = map_x(14.5)
-    ly_he = map_y(0.112)
+    ly_he = map_y(0.128)
     c.line(x_he - 2.5, y_he - 0.5, map_x(46.0), ly_he - 6.0, color=SLATE, width=0.55)
     c.text(lx_he, ly_he, "humanevalfix (n=74)", size=5.6, color=NAVY, bold=True)
     c.text(lx_he, ly_he - 7.3, "floor 0.081", size=5.3, color=INK)
     c.text(lx_he, ly_he - 14.3, "(ceiling-compressed)", size=5.2, color=CORAL)
 
-    # 3. swe_coder_effort: n=169 held-out, MDE80=0.145
+    # 3. swe_coder_effort: n=169 held-out, Table XI MDE80=0.132-0.143 (D1=0.132)
     x_ce = map_x(169.0)
-    y_ce_mde = map_y(0.145)
+    y_ce_mde = map_y(0.132)
     y_ce_fl = map_y(6.0 / 169.0)
     c.circle(x_ce, y_ce_fl, 2.0, fill=NAVY, stroke=WHITE, stroke_w=0.45)
     c.diamond(x_ce, y_ce_mde, 2.9, fill=TEAL, stroke=WHITE, stroke_w=0.5)
-    lx_ce = map_x(142.0)
-    ly_ce = map_y(0.248)
-    c.line(x_ce, y_ce_mde + 3.0, lx_ce, ly_ce - 15.5, color=SLATE, width=0.55)
+    lx_ce = map_x(62.0)
+    ly_ce = map_y(0.215)
+    c.line(x_ce - 2.6, y_ce_mde + 1.5, lx_ce + 22.0, ly_ce - 15.5, color=SLATE, width=0.55)
     c.text(lx_ce, ly_ce, "swe_coder_effort", size=5.6, color=NAVY, bold=True, align="center")
     c.text(lx_ce, ly_ce - 7.3, "(n=169 held-out)", size=5.3, color=SLATE, align="center")
-    c.text(lx_ce, ly_ce - 14.3, "MDE80 = 0.145", size=5.4, color=TEAL, bold=True, align="center")
+    c.text(lx_ce, ly_ce - 14.3, "MDE80 = 0.132\u20130.143", size=5.4, color=TEAL, bold=True, align="center")
 
-    # 4. swe_review_bench: n=183 held-out / 400 all, MDE80=0.047 on n=400
+    # 4. swe_review_bench: n=183 held-out / 400 all, pooled MDE80=0.067 on n=400
     x_rb_ho = map_x(183.0)
     y_rb_ho_fl = map_y(6.0 / 183.0)
     x_rb_all = map_x(400.0)
     y_rb_all_fl = map_y(6.0 / 400.0)
-    y_rb_all_mde = map_y(0.047)
+    y_rb_all_mde = map_y(0.067)
     c.circle(x_rb_ho, y_rb_ho_fl, 2.0, fill=WHITE, stroke=NAVY, stroke_w=0.75)
     c.circle(x_rb_all, y_rb_all_fl, 2.0, fill=NAVY, stroke=WHITE, stroke_w=0.45)
     c.diamond(x_rb_all, y_rb_all_mde, 2.9, fill=TEAL, stroke=WHITE, stroke_w=0.5)
 
-    lx_rb = map_x(424.0)
-    ly_rb = map_y(0.110)
-    c.line(x_rb_all - 1.5, y_rb_all_mde + 2.8, lx_rb - 22.0, ly_rb - 16.0, color=SLATE, width=0.55)
+    lx_rb = map_x(432.0)
+    ly_rb = map_y(0.260)
+    c.line(x_rb_all, y_rb_all_mde + 3.2, x_rb_all, ly_rb - 16.5, color=SLATE, width=0.55)
     c.text(lx_rb, ly_rb, "swe_review_bench", size=5.6, color=NAVY, bold=True, align="right")
     c.text(lx_rb, ly_rb - 7.3, "n=183 held-out / 400 all", size=5.3, color=SLATE, align="right")
-    c.text(lx_rb, ly_rb - 14.3, "MDE80 = 0.047 (n=400)", size=5.4, color=TEAL, bold=True, align="right")
+    c.text(lx_rb, ly_rb - 14.3, "MDE80 = 0.067 (n=400)", size=5.4, color=TEAL, bold=True, align="right")
 
     # Plot border
     c.rect(px, py, pw, ph, fill=None, stroke=SLATE, stroke_w=0.75)
@@ -1100,7 +1100,8 @@ def draw_fig_ablations() -> bytes:
 
         # Value labels cleanly above each sub-bar
         c.text(rx + sub_w / 2.0, ry1 + 2.2, rstr, size=5.2, color=INK, bold=True, align="center")
-        c.text(tx + sub_w / 2.0, ty1 + 2.2, tstr, size=5.0, color=AMBER_DEEP, bold=True, align="center")
+        tok_lbl_x = tx + sub_w / 2.0 + (1.5 if idx == 4 else 0.0)
+        c.text(tok_lbl_x, ty1 + 2.2, tstr, size=5.0, color=AMBER_DEEP, bold=True, align="center")
 
         # X-tick label
         c.text(cx, by - 8.5, lbl, size=5.3, color=INK, bold=(idx in (1, 4)), align="center")
